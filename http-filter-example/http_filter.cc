@@ -5,6 +5,7 @@
 
 #include "http_filter.h"
 
+#include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 
 namespace Envoy {
@@ -15,7 +16,45 @@ HttpSampleDecoderFilterConfig::HttpSampleDecoderFilterConfig(
     : key_(proto_config.key()), val_(proto_config.val()), extra_(stoi(proto_config.extra())) {}
 
 HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr config)
-    : config_(config) {}
+    : config_(config) {
+  // populate list of valid operations, implementation will be changed in the next few commits
+  operations_.insert("set-header");
+  
+  const std::string header_config = headerValue();
+
+  // find the position of the first space character
+  const size_t spacePos = header_config.find(' ');
+
+  const auto operation = header_config.substr(0, spacePos);
+
+  // error checking -- invalid operation
+  auto it = operations_.find(operation);
+  if (it == operations_.end()) {
+    ENVOY_LOG_MISC(info, "invalid config given -- invalid operation");
+    setError(1);
+  }
+
+  const std::string args = header_config.substr(spacePos + 1);
+
+  // create a string stream to iterate over the arguments
+  std::istringstream iss(args);
+  std::vector<std::string> values;
+  std::string value;
+
+  // split the rest of the string by space and store the values in a vector
+  while (iss >> value) {
+      values.push_back(value);
+  }
+
+  // error checking -- wrong number of arguments
+  if (operation == "set-header" && values.size() != 2) {
+    ENVOY_LOG_MISC(info, "invalid config given -- expected 2 arguments");
+    setError(1);
+  }
+
+  // insert the key-value pair into header_ops
+  header_ops_[operation] = values;
+}
 
 HttpSampleDecoderFilter::~HttpSampleDecoderFilter() {}
 
@@ -33,38 +72,28 @@ int HttpSampleDecoderFilter::headerExtra() const {
   return config_->extra();
 }
 
+int HttpSampleDecoderFilter::getError() const {
+  return error_;
+}
+
+void HttpSampleDecoderFilter::setError(const int val) {
+  error_ = val;
+}
+
 FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& headers, bool) {
+    if (getError()) {
+      ENVOY_LOG_MISC(info, "error detected when parsing config, skipping http filter");
+      return FilterHeadersStatus::Continue;
+    }
 
-  // parse config: key is header operation, value is a vector of arguments for the operation
-  std::unordered_map<std::string, std::vector<std::string>> header_ops;
-  std::string header_config = headerValue();
-
-  // Find the position of the first space character
-  size_t spacePos = header_config.find(' ');
-  std::string operation = header_config.substr(0, spacePos);
-  std::string args = header_config.substr(spacePos + 1);
-
-  // Create a string stream to iterate over the arguments
-  std::istringstream iss(args);
-  std::vector<std::string> values;
-  std::string value;
-
-  // Split the rest of the string by space and store the values in a vector
-  while (iss >> value) {
-      values.push_back(value);
-  }
-
-  // Insert the key-value pair into header_ops
-  header_ops[operation] = values;
+  auto header_ops = header_ops_;
 
   // perform header operations
-  for (auto it = header_ops.begin(); it != header_ops.end(); ++it) {
-        std::string op = it->first;
-
+  for (auto const& header_op : header_ops) {
+        std::string op = header_op.first;
         if (op == "set-header") {
-          headers.setCopy(LowerCaseString(header_ops[op][0]), header_ops[op][1]);
-        }
-        else {
+          headers.setCopy(LowerCaseString(header_ops[op].at(0)), header_ops[op].at(1));
+        } else {
           headers.addCopy(LowerCaseString("no"), "op"); 
         }
   }
