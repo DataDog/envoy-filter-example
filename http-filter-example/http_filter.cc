@@ -5,11 +5,17 @@
 
 #include "http_filter.h"
 
+#include "source/common/common/utility.h"
 #include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 
 namespace Envoy {
 namespace Http {
+
+void fail(absl::string_view msg) {
+  auto& logger = Logger::Registry::getLog(Logger::Id::tracing);
+  ENVOY_LOG_TO_LOGGER(logger, error, "Failed to parse config - {}", msg);
+}
 
 HttpSampleDecoderFilterConfig::HttpSampleDecoderFilterConfig(
     const sample::Decoder& proto_config)
@@ -24,14 +30,20 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
 
   // find the position of the first space character
   const size_t spacePos = header_config.find(' ');
+  if (spacePos == std::string::npos) {
+    fail("no arguments provided");
+    setError(1);
+    return;
+  }
 
+  // can't be a string view
   const auto operation = header_config.substr(0, spacePos);
 
   // error checking -- invalid operation
-  auto it = operations_.find(operation);
-  if (it == operations_.end()) {
-    ENVOY_LOG_MISC(info, "invalid config given -- invalid operation");
+  if (operations_.find(operation) == operations_.end()) {
+    fail("invalid operation provided");
     setError(1);
+    return;
   }
 
   const std::string args = header_config.substr(spacePos + 1);
@@ -48,8 +60,9 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
 
   // error checking -- wrong number of arguments
   if (operation == "set-header" && values.size() != 2) {
-    ENVOY_LOG_MISC(info, "invalid config given -- expected 2 arguments");
+    fail("expected 2 arguments");
     setError(1);
+    return;
   }
 
   // insert the key-value pair into header_ops
@@ -82,7 +95,7 @@ void HttpSampleDecoderFilter::setError(const int val) {
 
 FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& headers, bool) {
     if (getError()) {
-      ENVOY_LOG_MISC(info, "error detected when parsing config, skipping http filter");
+      fail("skipping http filter");
       return FilterHeadersStatus::Continue;
     }
 
@@ -90,11 +103,11 @@ FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& hea
 
   // perform header operations
   for (auto const& header_op : header_ops) {
-        std::string op = header_op.first;
+        const std::string op = header_op.first;
         if (op == "set-header") {
           headers.setCopy(LowerCaseString(header_ops[op].at(0)), header_ops[op].at(1));
         } else {
-          headers.addCopy(LowerCaseString("no"), "op"); 
+          headers.addCopy(LowerCaseString("no"), "op");
         }
   }
 
