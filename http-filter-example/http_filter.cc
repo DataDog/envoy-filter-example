@@ -23,55 +23,57 @@ HttpSampleDecoderFilterConfig::HttpSampleDecoderFilterConfig(
 
 HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr config)
     : config_(config) {
-  // populate list of valid operations, implementation will be changed in the next few commits
-  operations_.insert("set-header");
   
   const std::string header_config = headerValue();
 
-  // find the position of the first space character
-  const size_t spacePos = header_config.find(' ');
-  if (spacePos == std::string::npos) {
-    fail("no arguments provided");
-    setError(1);
-    return;
+  // split by operation (comma delimited config)
+  auto operations = StringUtil::splitToken(header_config, ",");
+
+  for (auto const& operation : operations) {
+    auto tokens = StringUtil::splitToken(operation, " ");
+    if (tokens.size() < 3) {
+      fail("too few arguments provided");
+      setError(1); // TODO: set error based on globally defined macros
+      return;
+    }
+
+    // determine if it's request/response
+    if (tokens[0] != "http-request" && tokens[0] != "http-response") {
+      fail("first argument must be <http-response/http-request>");
+      setError(1); // TODO: set error based on globally defined macros
+      return;
+    }
+    bool isRequest = (tokens[0] == "http-request");
+
+    // TODO: determine the operation type (right now assuming that it's a set-header operation)
+
+    // make new header processor
+    SetHeaderProcessor* processor = new SetHeaderProcessor(isRequest);
+
+    // parse operation
+    // remove http-request and operation type from the string
+
+    if(processor->parseOperation(tokens)) {
+      fail("unable to parse operation");
+      setError(1); // TODO: set error based on globally defined macros
+      return;
+    }
+
+    if (isRequest) {
+      request_header_processors_.push_back(processor);
+    }
   }
-
-  // can't be a string view
-  const auto operation = header_config.substr(0, spacePos);
-
-  // error checking -- invalid operation
-  if (operations_.find(operation) == operations_.end()) {
-    fail("invalid operation provided");
-    setError(1);
-    return;
-  }
-
-  const std::string args = header_config.substr(spacePos + 1);
-
-  // create a string stream to iterate over the arguments
-  std::istringstream iss(args);
-  std::vector<std::string> values;
-  std::string value;
-
-  // split the rest of the string by space and store the values in a vector
-  while (iss >> value) {
-      values.push_back(value);
-  }
-
-  // error checking -- wrong number of arguments
-  if (operation == "set-header" && values.size() != 2) {
-    fail("expected 2 arguments");
-    setError(1);
-    return;
-  }
-
-  // insert the key-value pair into header_ops
-  header_ops_[operation] = values;
 }
 
-HttpSampleDecoderFilter::~HttpSampleDecoderFilter() {}
+HttpSampleDecoderFilter::~HttpSampleDecoderFilter() {
+  onDestroy(); // not sure if this is called automatically somewhere else
+}
 
-void HttpSampleDecoderFilter::onDestroy() {}
+void HttpSampleDecoderFilter::onDestroy() {
+  for (auto processor : request_header_processors_) {
+    free(processor);
+  }
+}
 
 const LowerCaseString HttpSampleDecoderFilter::headerKey() const {
   return LowerCaseString(config_->key());
@@ -94,21 +96,17 @@ void HttpSampleDecoderFilter::setError(const int val) {
 }
 
 FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& headers, bool) {
-    if (getError()) {
-      fail("skipping http filter");
+  int err = 0;
+
+  if (err) {
+    return FilterHeadersStatus::Continue;
+  }
+
+  for (auto const processor : request_header_processors_) {
+    if(processor->executeOperation(headers)) {
+      fail("unable to execute operation");
       return FilterHeadersStatus::Continue;
     }
-
-  auto header_ops = header_ops_;
-
-  // perform header operations
-  for (auto const& header_op : header_ops) {
-        const std::string op = header_op.first;
-        if (op == "set-header") {
-          headers.setCopy(LowerCaseString(header_ops[op].at(0)), header_ops[op].at(1));
-        } else {
-          headers.addCopy(LowerCaseString("no"), "op");
-        }
   }
 
   return FilterHeadersStatus::Continue;

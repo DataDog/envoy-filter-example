@@ -3,6 +3,8 @@
 #include <string>
 #include <unordered_set>
 
+#include "header_processor.h"
+
 #include "source/extensions/filters/http/common/pass_through_filter.h"
 #include "envoy/common/exception.h"
 #include "http-filter-example/http_filter.pb.h"
@@ -44,11 +46,15 @@ private:
   StreamDecoderFilterCallbacks* decoder_callbacks_;
   int error_ = 0;
 
+  // header processors
+  // TODO: add one for response header processing once filter is converted to Encoder/Decoder
+  std::vector<HeaderProcessor*> request_header_processors_;
+
   // set of accepted operations
   std::unordered_set<std::string> operations_;
 
-  //key is header operation, value is a vector of arguments for the operation
-  std::unordered_map<std::string, std::vector<std::string>> header_ops_;
+  // key is header operation, value is a vector of arguments for the operation
+  // std::unordered_map<std::string, std::vector<std::string>> header_ops_;
 
   const LowerCaseString headerKey() const;
   const std::string headerValue() const;
@@ -57,10 +63,10 @@ private:
   int getError() const;
 };
 
-class FilterException : public EnvoyException {
-public:
-  using EnvoyException::EnvoyException;
-};
+// class FilterException : public EnvoyException {
+// public:
+//   using EnvoyException::EnvoyException;
+// };
 
 } // namespace Http
 } // namespace Envoy
