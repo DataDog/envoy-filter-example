@@ -28,6 +28,8 @@ envoy_cc_library(
         ":pkg_cc_proto",
         ":http_header_processor_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
+        "@envoy//source/common/common:utility_lib",
+        "@envoy//source/common/common:minimal_logger_lib",
     ],
 )
 
