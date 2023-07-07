@@ -9,12 +9,13 @@ public:
   /**
    * Initializer for an individual integration test.
    */
-  void SetUp() override { initialize(); }
+  void SetUp() override { }
+  void SetUp(std::string config) { initialize(config); }
 
-  void initialize() override {
-    config_helper_.prependFilter(
-        "{ name: sample, typed_config: { \"@type\": type.googleapis.com/sample.Decoder, key: via, "
-        "val: sample-filter } }");
+  void initialize() override {}
+
+  void initialize(std::string config) {
+    config_helper_.prependFilter(config);
     HttpIntegrationTest::initialize();
   }
 };
@@ -23,6 +24,7 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterSampleIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(HttpFilterSampleIntegrationTest, Test1) {
+  SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/sample.Decoder, key: header-processing, val: set-header x-forwarded-proto https, extra: \"123456\" } }");
   Http::TestRequestHeaderMapImpl headers{
       {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
   Http::TestRequestHeaderMapImpl response_headers{
@@ -41,8 +43,8 @@ TEST_P(HttpFilterSampleIntegrationTest, Test1) {
   ASSERT_TRUE(response->waitForEndStream());
 
   EXPECT_EQ(
-      "sample-filter",
-      request_stream->headers().get(Http::LowerCaseString("via"))[0]->value().getStringView());
+      "https",
+      request_stream->headers().get(Http::LowerCaseString("x-forwarded-proto"))[0]->value().getStringView());
 
   codec_client->close();
 }

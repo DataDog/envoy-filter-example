@@ -66,7 +66,7 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
   }
 
   // insert the key-value pair into header_ops
-  header_ops_[operation] = values;
+  header_ops_.insert({operation, values});
 }
 
 HttpSampleDecoderFilter::~HttpSampleDecoderFilter() {}
@@ -105,7 +105,7 @@ FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& hea
   for (auto const& header_op : header_ops) {
         const std::string op = header_op.first;
         if (op == "set-header") {
-          headers.setCopy(LowerCaseString(header_ops[op].at(0)), header_ops[op].at(1));
+          headers.setCopy(LowerCaseString(header_op.second.at(0)), header_op.second.at(1));
         } else {
           headers.addCopy(LowerCaseString("no"), "op");
         }
