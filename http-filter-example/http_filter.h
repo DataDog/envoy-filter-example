@@ -33,7 +33,6 @@ public:
   HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr);
   ~HttpSampleDecoderFilter();
 
-  // Http::StreamFilterBase
   void onDestroy() override;
 
   // Http::StreamDecoderFilter
@@ -53,9 +52,6 @@ private:
   // set of accepted operations
   std::unordered_set<std::string> operations_;
 
-  // key is header operation, value is a vector of arguments for the operation
-  // std::unordered_map<std::string, std::vector<std::string>> header_ops_;
-
   const LowerCaseString headerKey() const;
   const std::string headerValue() const;
   int headerExtra() const;
@@ -63,6 +59,7 @@ private:
   int getError() const;
 };
 
+// TODO: might need to throw an exception in the future
 // class FilterException : public EnvoyException {
 // public:
 //   using EnvoyException::EnvoyException;

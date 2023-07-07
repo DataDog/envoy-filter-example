@@ -27,8 +27,9 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
   const std::string header_config = headerValue();
 
   // split by operation (comma delimited config)
-  auto operations = StringUtil::splitToken(header_config, ",");
+  auto operations = StringUtil::splitToken(header_config, "\n", false, true);
 
+  // process each operation
   for (auto const& operation : operations) {
     auto tokens = StringUtil::splitToken(operation, " ");
     if (tokens.size() < 3) {
@@ -45,20 +46,19 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
     }
     bool isRequest = (tokens[0] == "http-request");
 
-    // TODO: determine the operation type (right now assuming that it's a set-header operation)
+    // TODO: determine the operation type (right now I'm assuming that it's always a set-header operation)
 
     // make new header processor
-    SetHeaderProcessor* processor = new SetHeaderProcessor(isRequest);
+    SetHeaderProcessor* processor = new SetHeaderProcessor();
 
     // parse operation
-    // remove http-request and operation type from the string
-
     if(processor->parseOperation(tokens)) {
       fail("unable to parse operation");
       setError(1); // TODO: set error based on globally defined macros
       return;
     }
 
+    // keep track of operations to be executed
     if (isRequest) {
       request_header_processors_.push_back(processor);
     }
@@ -102,6 +102,8 @@ FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& hea
     return FilterHeadersStatus::Continue;
   }
 
+  // execute each operation
+  // TODO: run this loop for the response side too once filter type is changed to Encoder/Decoder
   for (auto const processor : request_header_processors_) {
     if(processor->executeOperation(headers)) {
       fail("unable to execute operation");

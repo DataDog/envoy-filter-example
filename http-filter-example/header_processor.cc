@@ -3,9 +3,7 @@
 namespace Envoy {
 namespace Http {
 
-    SetHeaderProcessor::SetHeaderProcessor(bool isRequest) {
-        isRequest_ = isRequest;
-    }
+    SetHeaderProcessor::SetHeaderProcessor() {}
 
     int SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression) {
         int err = 0;
@@ -16,11 +14,13 @@ namespace Http {
 
         // parse key and call setKey
         std::string key = std::string(operation_expression.at(2));
-        // std::string key = "mock_key";
         setKey(key);
 
         // parse values and call setVals
-        std::vector<std::string> vals({"mock_val1", "mock_val2"});
+        std::vector<std::string> vals;
+        for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
+            vals.push_back(std::string{*it});
+        }
         setVals(vals);
 
         // parse condition expression and call evaluate conditions on the parsed expression
@@ -36,7 +36,7 @@ namespace Http {
     }
 
     int SetHeaderProcessor::executeOperation(RequestHeaderMap& headers) const {
-        int err = 0; // TODO will set-header every return an error?
+        int err = 0; // TODO will executing set-header ever return an error?
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
