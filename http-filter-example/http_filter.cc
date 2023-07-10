@@ -54,7 +54,6 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
 
     switch(operation_type) {
       case Utility::OperationType::kSetHeader:
-        // make new header processor
         processor = std::make_unique<SetHeaderProcessor>();
         break;
       case Utility::OperationType::kSetPath:
@@ -63,7 +62,7 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
         return;
       default:
         fail("invalid operation type");
-        setError(); // TODO: change this to setError() once error checks PR is merged
+        setError();
         return;
     }
 
