@@ -33,12 +33,12 @@ public:
 
 private:
   Http::FilterFactoryCb createFilter(const sample::Decoder& proto_config, FactoryContext&) {
-    Http::HttpSampleDecoderFilterConfigSharedPtr config =
-        std::make_shared<Http::HttpSampleDecoderFilterConfig>(
-            Http::HttpSampleDecoderFilterConfig(proto_config));
+    Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfigSharedPtr config =
+        std::make_shared<Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfig>(
+            Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfig(proto_config));
 
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      auto filter = new Http::HttpSampleDecoderFilter(config);
+      auto filter = new Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilter(config);
       callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{filter});
     };
   }

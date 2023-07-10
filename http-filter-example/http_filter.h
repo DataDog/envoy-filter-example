@@ -10,7 +10,9 @@
 #include "http-filter-example/http_filter.pb.h"
 
 namespace Envoy {
-namespace Http {
+namespace Extensions {
+namespace HttpFilters {
+namespace SampleFilter {
 
 class HttpSampleDecoderFilterConfig {
 public:
@@ -18,43 +20,41 @@ public:
 
   const std::string& key() const { return key_; }
   const std::string& val() const { return val_; }
-  int extra() const { return extra_; }
 
 private:
   const std::string key_;
   const std::string val_;
-  const int extra_ = 0;
 };
 
 using HttpSampleDecoderFilterConfigSharedPtr = std::shared_ptr<HttpSampleDecoderFilterConfig>;
+using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
 
-class HttpSampleDecoderFilter : public PassThroughDecoderFilter {
+class HttpSampleDecoderFilter : public Http::PassThroughDecoderFilter {
 public:
   HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr);
-  ~HttpSampleDecoderFilter();
+  ~HttpSampleDecoderFilter() {}
 
-  void onDestroy() override;
+  void onDestroy() override {}
 
   // Http::StreamDecoderFilter
-  FilterHeadersStatus decodeHeaders(RequestHeaderMap&, bool) override;
-  FilterDataStatus decodeData(Buffer::Instance&, bool) override;
-  void setDecoderFilterCallbacks(StreamDecoderFilterCallbacks&) override;
+  Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap&, bool) override;
+  Http::FilterDataStatus decodeData(Buffer::Instance&, bool) override;
+  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks&) override;
 
 private:
   const HttpSampleDecoderFilterConfigSharedPtr config_;
-  StreamDecoderFilterCallbacks* decoder_callbacks_;
+  Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
   int error_ = 0;
 
   // header processors
   // TODO: add one for response header processing once filter is converted to Encoder/Decoder
-  std::vector<HeaderProcessor*> request_header_processors_;
+  std::vector<HeaderProcessorUniquePtr> request_header_processors_;
 
   // set of accepted operations
   std::unordered_set<std::string> operations_;
 
-  const LowerCaseString headerKey() const;
+  const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;
-  int headerExtra() const;
   void setError(const int val);
   int getError() const;
 };
@@ -65,5 +65,7 @@ private:
 //   using EnvoyException::EnvoyException;
 // };
 
-} // namespace Http
+} // namespace SampleFilter
+} // namespace HttpFilters
+} // namespace Extensions
 } // namespace Envoy

@@ -1,7 +1,9 @@
 #include "header_processor.h"
 
 namespace Envoy {
-namespace Http {
+namespace Extensions {
+namespace HttpFilters {
+namespace SampleFilter {
 
     SetHeaderProcessor::SetHeaderProcessor() {}
 
@@ -13,7 +15,7 @@ namespace Http {
         }
 
         // parse key and call setKey
-        std::string key = std::string(operation_expression.at(2));
+        absl::string_view key = operation_expression.at(2);
         setKey(key);
 
         // parse values and call setVals
@@ -35,24 +37,25 @@ namespace Http {
         return err;
     }
 
-    int SetHeaderProcessor::executeOperation(RequestHeaderMap& headers) const {
+    int SetHeaderProcessor::executeOperation(Http::RequestHeaderMap& headers) const {
         int err = 0; // TODO will executing set-header ever return an error?
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
         if (!condition_result) {
-            // do nothing because condition is false
-            return err;
+            return err; // do nothing because condition is false
         }
         
         // set header
         for (auto const& header_val : header_vals) {
-            headers.addCopy(LowerCaseString(key), header_val);
+            headers.addCopy(Http::LowerCaseString(key), header_val);
         }
 
         return err;
     }
 
-} // namespace Http
+} // namespace SampleFilter
+} // namespace HttpFilters
+} // namespace Extensions
 } // namespace Envoy
