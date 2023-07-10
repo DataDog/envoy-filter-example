@@ -7,52 +7,53 @@ namespace SampleFilter {
 
     SetHeaderProcessor::SetHeaderProcessor() {}
 
-    int SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression) {
-        int err = 0;
-
+    absl::Status SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression) {
         if (operation_expression.size() < 4) {
-            return 1;
+            return absl::InvalidArgumentError("too few arguments");
         }
 
         // parse key and call setKey
-        absl::string_view key = operation_expression.at(2);
-        setKey(key);
+        try {
+            absl::string_view key = operation_expression.at(2); // could throw out of range
+            setKey(key);
+        } catch (const std::out_of_range& oor) {
+            return absl::InvalidArgumentError("error parsing header key");
+        }
 
         // parse values and call setVals
-        std::vector<std::string> vals;
-        for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
-            vals.push_back(std::string{*it});
+        try {
+            std::vector<std::string> vals;
+            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) { // could throw out of range
+                vals.push_back(std::string{*it}); // could through bad_alloc
+            }
+            setVals(vals);
+        } catch (const std::exception& e) {
+            return absl::InvalidArgumentError("error parsing header values");
         }
-        setVals(vals);
 
         // parse condition expression and call evaluate conditions on the parsed expression
-        evaluateCondition();
-
-        return err;
+        absl::Status status = evaluateCondition();
+        return status;
     }
 
-    int SetHeaderProcessor::evaluateCondition() {
-        int err = 0;
+    absl::Status SetHeaderProcessor::evaluateCondition() {
         setCondition(true);
-        return err;
+        return absl::OkStatus();
     }
 
-    int SetHeaderProcessor::executeOperation(Http::RequestHeaderMap& headers) const {
-        int err = 0; // TODO will executing set-header ever return an error?
+    void SetHeaderProcessor::executeOperation(Http::RequestHeaderMap& headers) const {
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
         if (!condition_result) {
-            return err; // do nothing because condition is false
+            return; // do nothing because condition is false
         }
         
         // set header
         for (auto const& header_val : header_vals) {
-            headers.addCopy(Http::LowerCaseString(key), header_val);
+            headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
-
-        return err;
     }
 
 } // namespace SampleFilter

@@ -36,15 +36,15 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
     auto tokens = StringUtil::splitToken(operation, " ");
     if (tokens.size() < 3) {
       fail("too few arguments provided");
-      setError(1); // TODO: set error based on globally defined macros
-      return;
+      setError();
+      return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
 
     // determine if it's request/response
     if (tokens[0] != "http-request" && tokens[0] != "http-response") {
       fail("first argument must be <http-response/http-request>");
-      setError(1); // TODO: set error based on globally defined macros
-      return;
+      setError();
+      return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
     const bool isRequest = (tokens[0] == "http-request");
 
@@ -54,10 +54,11 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
     HeaderProcessorUniquePtr processor = std::make_unique<SetHeaderProcessor>();
 
     // parse operation
-    if (processor->parseOperation(tokens)) {
-      fail("unable to parse operation");
-      setError(1); // TODO: set error based on globally defined macros
-      return;
+    absl::Status status = processor->parseOperation(tokens);
+    if (!status.ok()) {
+      fail(status.message());
+      setError();
+      return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
 
     // keep track of operations to be executed
@@ -75,28 +76,16 @@ const std::string HttpSampleDecoderFilter::headerValue() const {
   return config_->val();
 }
 
-int HttpSampleDecoderFilter::getError() const {
-  return error_;
-}
-
-void HttpSampleDecoderFilter::setError(const int val) {
-  error_ = val;
-}
-
 Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
-  int err = 0;
-
-  if (err) {
+  if (getError()) {
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter"); // TODO: do we quit here or execute operations that are grammatical?
     return Http::FilterHeadersStatus::Continue;
   }
 
   // execute each operation
   // TODO: run this loop for the response side too once filter type is changed to Encoder/Decoder
   for (auto const& processor : request_header_processors_) {
-    if (processor->executeOperation(headers)) {
-      fail("unable to execute operation");
-      return Http::FilterHeadersStatus::Continue;
-    }
+    processor->executeOperation(headers);
   }
 
   return Http::FilterHeadersStatus::Continue;

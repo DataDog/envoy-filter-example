@@ -44,7 +44,7 @@ public:
 private:
   const HttpSampleDecoderFilterConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
-  int error_ = 0;
+  bool error_ = false;
 
   // header processors
   // TODO: add one for response header processing once filter is converted to Encoder/Decoder
@@ -55,8 +55,8 @@ private:
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;
-  void setError(const int val);
-  int getError() const;
+  void setError() { error_ = true; }
+  bool getError() const { return error_; };
 };
 
 // TODO: might need to throw an exception in the future
