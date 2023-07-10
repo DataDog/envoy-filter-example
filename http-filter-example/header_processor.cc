@@ -20,7 +20,7 @@ namespace SampleFilter {
 
         // parse values and call setVals
         std::vector<std::string> vals;
-        for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
+        for (auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
             vals.push_back(std::string{*it});
         }
         setVals(vals);
