@@ -66,25 +66,6 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
         setError(); // TODO: change this to setError() once error checks PR is merged
         return;
     }
-    const bool isRequest = (tokens.at(0) == "http-request");
-
-    Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
-    HeaderProcessorUniquePtr processor;
-
-    switch(operation_type) {
-      case Utility::OperationType::kSetHeader:
-        // make new header processor
-        processor = std::make_unique<SetHeaderProcessor>();
-        break;
-      case Utility::OperationType::kSetPath:
-        // TODO: implement set-path operation
-        ENVOY_LOG_MISC(info, "set path operation detected!");
-        return;
-      default:
-        fail("invalid operation type");
-        setError(); // TODO: change this to setError() once error checks PR is merged
-        return;
-    }
 
     // parse operation
     absl::Status status = processor->parseOperation(tokens);

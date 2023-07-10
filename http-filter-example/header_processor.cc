@@ -21,9 +21,14 @@ namespace SampleFilter {
         }
 
         // parse values and call setVals
-        std::vector<std::string> vals;
-        for (auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
-            vals.push_back(std::string{*it});
+        try {
+            std::vector<std::string> vals;
+            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) { // could throw out of range
+                vals.push_back(std::string{*it}); // could through bad_alloc
+            }
+            setVals(vals);
+        } catch (const std::exception& e) {
+            return absl::InvalidArgumentError("error parsing header values");
         }
 
         // parse condition expression and call evaluate conditions on the parsed expression
