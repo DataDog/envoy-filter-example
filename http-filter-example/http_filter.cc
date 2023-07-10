@@ -63,7 +63,7 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
         return;
       default:
         fail("invalid operation type");
-        setError(1); // TODO: change this to setError() once error checks PR is merged
+        setError(); // TODO: change this to setError() once error checks PR is merged
         return;
     }
 
