@@ -32,7 +32,7 @@ using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
 class HttpSampleDecoderFilter : public Http::PassThroughDecoderFilter {
 public:
   HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr);
-  ~HttpSampleDecoderFilter() {}
+  virtual ~HttpSampleDecoderFilter() {}
 
   void onDestroy() override {}
 
