@@ -3,7 +3,7 @@
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 namespace Utility {
 
  OperationType StringToOperationType(absl::string_view operation) {
@@ -17,7 +17,7 @@ namespace Utility {
 }
 
 } // namespace Utility
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy

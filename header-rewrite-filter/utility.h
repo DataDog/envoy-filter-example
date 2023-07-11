@@ -5,7 +5,7 @@
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 namespace Utility {
 
 constexpr uint8_t MIN_NUM_ARGUMENTS = 4;
@@ -22,7 +22,7 @@ enum class OperationType : int {
 OperationType StringToOperationType(absl::string_view operation);
 
 } // namespace Utility
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy

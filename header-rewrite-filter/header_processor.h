@@ -8,7 +8,7 @@
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 
 class HeaderProcessor {
 public:
@@ -48,7 +48,7 @@ private:
   bool error_ = false;
 };
 
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy

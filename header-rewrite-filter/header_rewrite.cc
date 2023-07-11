@@ -3,7 +3,7 @@
 #include <sstream>
 #include <vector>
 
-#include "http_filter.h"
+#include "header_rewrite.h"
 #include "utility.h"
 
 #include "source/common/common/utility.h"
@@ -13,18 +13,18 @@
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 
 void fail(absl::string_view msg) {
   auto& logger = Logger::Registry::getLog(Logger::Id::tracing);
   ENVOY_LOG_TO_LOGGER(logger, error, "Failed to parse config - {}", msg);
 }
 
-HttpSampleDecoderFilterConfig::HttpSampleDecoderFilterConfig(
+HttpHeaderRewriteFilterConfig::HttpHeaderRewriteFilterConfig(
     const sample::Decoder& proto_config)
     : key_(proto_config.key()), val_(proto_config.val()) {}
 
-HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr config)
+HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr config)
     : config_(config) {
   
   const std::string header_config = headerValue();
@@ -81,15 +81,15 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
   }
 }
 
-const Http::LowerCaseString HttpSampleDecoderFilter::headerKey() const {
+const Http::LowerCaseString HttpHeaderRewriteFilter::headerKey() const {
   return Http::LowerCaseString(config_->key());
 }
 
-const std::string HttpSampleDecoderFilter::headerValue() const {
+const std::string HttpHeaderRewriteFilter::headerValue() const {
   return config_->val();
 }
 
-Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
+Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
   if (getError()) {
     ENVOY_LOG_MISC(info, "invalid config, skipping filter");
     return Http::FilterHeadersStatus::Continue;
@@ -104,15 +104,15 @@ Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHe
   return Http::FilterHeadersStatus::Continue;
 }
 
-Http::FilterDataStatus HttpSampleDecoderFilter::decodeData(Buffer::Instance&, bool) {
+Http::FilterDataStatus HttpHeaderRewriteFilter::decodeData(Buffer::Instance&, bool) {
   return Http::FilterDataStatus::Continue;
 }
 
-void HttpSampleDecoderFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
+void HttpHeaderRewriteFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
   decoder_callbacks_ = &callbacks;
 }
 
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy
