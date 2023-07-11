@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package sample;
+package envoy.extensions.filters.http;
 
 import "validate/validate.proto";
 
-message Decoder {
+message HeaderRewrite {
     string key = 1 [(validate.rules).string.min_len = 1];
     string val = 2 [(validate.rules).string.min_len = 1];
 }

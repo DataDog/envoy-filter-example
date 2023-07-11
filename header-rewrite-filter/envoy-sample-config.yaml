@@ -43,11 +43,11 @@ static_resources:
           http_filters:
           - name: sample
             typed_config:
-              "@type": type.googleapis.com/sample.Decoder
+              "@type": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite
               key: header-processing
               val: |
                   http-request set-header x-forwarded-proto https
-                  http-request set-header mock_key mock_val1 mock_val2
+                  http-response set-header mock_key mock_val1 mock_val2
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

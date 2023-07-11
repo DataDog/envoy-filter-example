@@ -16,7 +16,7 @@ namespace HeaderRewriteFilter {
 
 class HttpHeaderRewriteFilterConfig {
 public:
-  HttpHeaderRewriteFilterConfig(const sample::Decoder& proto_config);
+  HttpHeaderRewriteFilterConfig(const envoy::extensions::filters::http::HeaderRewrite& proto_config);
 
   const std::string& key() const { return key_; }
   const std::string& val() const { return val_; }
@@ -29,26 +29,25 @@ private:
 using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
 using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
 
-class HttpHeaderRewriteFilter : public Http::PassThroughDecoderFilter {
+class HttpHeaderRewriteFilter : public Http::PassThroughFilter {
 public:
   HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr);
   virtual ~HttpHeaderRewriteFilter() {}
 
   void onDestroy() override {}
 
-  // Http::StreamDecoderFilter
   Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap&, bool) override;
   Http::FilterDataStatus decodeData(Buffer::Instance&, bool) override;
-  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks&) override;
+  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap&, bool) override;
+  Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override;
 
 private:
   const HttpHeaderRewriteFilterConfigSharedPtr config_;
-  Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
   bool error_ = false;
 
   // header processors
-  // TODO: add one for response header processing once filter is converted to Encoder/Decoder
   std::vector<HeaderProcessorUniquePtr> request_header_processors_;
+  std::vector<HeaderProcessorUniquePtr> response_header_processors_;
 
   // set of accepted operations
   std::unordered_set<std::string> operations_;
