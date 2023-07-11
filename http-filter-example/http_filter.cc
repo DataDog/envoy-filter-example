@@ -38,14 +38,14 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
     if (tokens.size() < Utility::MIN_NUM_ARGUMENTS) {
       fail("too few arguments provided");
       setError();
-      return; // TODO: should we quit here or continue to process operations that are grammatical?
+      return;
     }
 
     // determine if it's request/response
     if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
       fail("first argument must be <http-response/http-request>");
       setError();
-      return; // TODO: should we quit here or continue to process operations that are grammatical?
+      return;
     }
     const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
 
@@ -67,11 +67,11 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
     }
 
     // parse operation
-    absl::Status status = processor->parseOperation(tokens);
+    const absl::Status status = processor->parseOperation(tokens);
     if (!status.ok()) {
       fail(status.message());
       setError();
-      return; // TODO: should we quit here or continue to process operations that are grammatical?
+      return;
     }
 
     // keep track of operations to be executed
@@ -91,7 +91,7 @@ const std::string HttpSampleDecoderFilter::headerValue() const {
 
 Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
   if (getError()) {
-    ENVOY_LOG_MISC(info, "invalid config, skipping filter"); // TODO: do we quit here or execute operations that are grammatical?
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter");
     return Http::FilterHeadersStatus::Continue;
   }
 

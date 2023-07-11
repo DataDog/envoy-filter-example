@@ -8,7 +8,7 @@ namespace HttpFilters {
 namespace SampleFilter {
 namespace Utility {
 
-constexpr uint8_t MIN_NUM_ARGUMENTS = 3;
+constexpr uint8_t MIN_NUM_ARGUMENTS = 4;
 
 constexpr absl::string_view HTTP_REQUEST = "http-request";
 constexpr absl::string_view HTTP_RESPONSE = "http-response";

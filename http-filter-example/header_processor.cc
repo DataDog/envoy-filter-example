@@ -8,23 +8,20 @@ namespace SampleFilter {
     SetHeaderProcessor::SetHeaderProcessor() {}
 
     absl::Status SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression) {
-        if (operation_expression.size() < 4) {
-            return absl::InvalidArgumentError("too few arguments");
-        }
-
         // parse key and call setKey
         try {
-            absl::string_view key = operation_expression.at(2); // could throw out of range
+            absl::string_view key = operation_expression.at(2);
             setKey(key);
-        } catch (const std::out_of_range& oor) {
+        } catch (const std::exception& e) {
+            // should never happen, range is checked in HTTP filter
             return absl::InvalidArgumentError("error parsing header key");
         }
 
         // parse values and call setVals
         try {
             std::vector<std::string> vals;
-            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) { // could throw out of range
-                vals.push_back(std::string{*it}); // could through bad_alloc
+            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
+                vals.push_back(std::string{*it}); // could throw bad_alloc
             }
             setVals(vals);
         } catch (const std::exception& e) {
