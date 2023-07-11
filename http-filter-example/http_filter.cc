@@ -4,13 +4,16 @@
 #include <vector>
 
 #include "http_filter.h"
+#include "utility.h"
 
 #include "source/common/common/utility.h"
 #include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 
 namespace Envoy {
-namespace Http {
+namespace Extensions {
+namespace HttpFilters {
+namespace SampleFilter {
 
 void fail(absl::string_view msg) {
   auto& logger = Logger::Registry::getLog(Logger::Id::tracing);
@@ -19,108 +22,97 @@ void fail(absl::string_view msg) {
 
 HttpSampleDecoderFilterConfig::HttpSampleDecoderFilterConfig(
     const sample::Decoder& proto_config)
-    : key_(proto_config.key()), val_(proto_config.val()), extra_(stoi(proto_config.extra())) {}
+    : key_(proto_config.key()), val_(proto_config.val()) {}
 
 HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr config)
     : config_(config) {
-  // populate list of valid operations, implementation will be changed in the next few commits
-  operations_.insert("set-header");
   
   const std::string header_config = headerValue();
 
-  // find the position of the first space character
-  const size_t spacePos = header_config.find(' ');
-  if (spacePos == std::string::npos) {
-    fail("no arguments provided");
-    setError(1);
-    return;
+  // split by operation (newline delimited config)
+  auto operations = StringUtil::splitToken(header_config, "\n", false, true);
+
+  // process each operation
+  for (auto const& operation : operations) {
+    auto tokens = StringUtil::splitToken(operation, " ");
+    if (tokens.size() < Utility::MIN_NUM_ARGUMENTS) {
+      fail("too few arguments provided");
+      setError();
+      return;
+    }
+
+    // determine if it's request/response
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
+      fail("first argument must be <http-response/http-request>");
+      setError();
+      return;
+    }
+    const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
+
+    const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
+    HeaderProcessorUniquePtr processor;
+
+    switch(operation_type) {
+      case Utility::OperationType::SetHeader:
+        processor = std::make_unique<SetHeaderProcessor>();
+        break;
+      case Utility::OperationType::SetPath:
+        // TODO: implement set-path operation
+        ENVOY_LOG_MISC(info, "set path operation detected!");
+        return;
+      default:
+        fail("invalid operation type");
+        setError();
+        return;
+    }
+
+    // parse operation
+    const absl::Status status = processor->parseOperation(tokens);
+    if (!status.ok()) {
+      fail(status.message());
+      setError();
+      return;
+    }
+
+    // keep track of operations to be executed
+    if (isRequest) {
+      request_header_processors_.push_back(std::move(processor));
+    }
   }
-
-  // can't be a string view
-  const auto operation = header_config.substr(0, spacePos);
-
-  // error checking -- invalid operation
-  if (operations_.find(operation) == operations_.end()) {
-    fail("invalid operation provided");
-    setError(1);
-    return;
-  }
-
-  const std::string args = header_config.substr(spacePos + 1);
-
-  // create a string stream to iterate over the arguments
-  std::istringstream iss(args);
-  std::vector<std::string> values;
-  std::string value;
-
-  // split the rest of the string by space and store the values in a vector
-  while (iss >> value) {
-      values.push_back(value);
-  }
-
-  // error checking -- wrong number of arguments
-  if (operation == "set-header" && values.size() != 2) {
-    fail("expected 2 arguments");
-    setError(1);
-    return;
-  }
-
-  // insert the key-value pair into header_ops
-  header_ops_[operation] = values;
 }
 
-HttpSampleDecoderFilter::~HttpSampleDecoderFilter() {}
-
-void HttpSampleDecoderFilter::onDestroy() {}
-
-const LowerCaseString HttpSampleDecoderFilter::headerKey() const {
-  return LowerCaseString(config_->key());
+const Http::LowerCaseString HttpSampleDecoderFilter::headerKey() const {
+  return Http::LowerCaseString(config_->key());
 }
 
 const std::string HttpSampleDecoderFilter::headerValue() const {
   return config_->val();
 }
 
-int HttpSampleDecoderFilter::headerExtra() const {
-  return config_->extra();
-}
-
-int HttpSampleDecoderFilter::getError() const {
-  return error_;
-}
-
-void HttpSampleDecoderFilter::setError(const int val) {
-  error_ = val;
-}
-
-FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(RequestHeaderMap& headers, bool) {
-    if (getError()) {
-      fail("skipping http filter");
-      return FilterHeadersStatus::Continue;
-    }
-
-  auto header_ops = header_ops_;
-
-  // perform header operations
-  for (auto const& header_op : header_ops) {
-        const std::string op = header_op.first;
-        if (op == "set-header") {
-          headers.setCopy(LowerCaseString(header_ops[op].at(0)), header_ops[op].at(1));
-        } else {
-          headers.addCopy(LowerCaseString("no"), "op");
-        }
+Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
+  if (getError()) {
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter");
+    return Http::FilterHeadersStatus::Continue;
   }
 
-  return FilterHeadersStatus::Continue;
+  // execute each operation
+  // TODO: run this loop for the response side too once filter type is changed to Encoder/Decoder
+  for (auto const& processor : request_header_processors_) {
+    processor->executeOperation(headers);
+  }
+
+  return Http::FilterHeadersStatus::Continue;
 }
 
-FilterDataStatus HttpSampleDecoderFilter::decodeData(Buffer::Instance&, bool) {
-  return FilterDataStatus::Continue;
+Http::FilterDataStatus HttpSampleDecoderFilter::decodeData(Buffer::Instance&, bool) {
+  return Http::FilterDataStatus::Continue;
 }
 
-void HttpSampleDecoderFilter::setDecoderFilterCallbacks(StreamDecoderFilterCallbacks& callbacks) {
+void HttpSampleDecoderFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
   decoder_callbacks_ = &callbacks;
 }
 
-} // namespace Http
+} // namespace SampleFilter
+} // namespace HttpFilters
+} // namespace Extensions
 } // namespace Envoy
