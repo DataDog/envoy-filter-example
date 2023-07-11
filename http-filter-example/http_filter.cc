@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "http_filter.h"
+#include "utility.h"
 
 #include "source/common/common/utility.h"
 #include "source/common/common/logger.h"
@@ -34,24 +35,36 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
   // process each operation
   for (auto const& operation : operations) {
     auto tokens = StringUtil::splitToken(operation, " ");
-    if (tokens.size() < 3) {
+    if (tokens.size() < Utility::MIN_NUM_ARGUMENTS) {
       fail("too few arguments provided");
       setError();
       return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
 
     // determine if it's request/response
-    if (tokens[0] != "http-request" && tokens[0] != "http-response") {
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
       fail("first argument must be <http-response/http-request>");
       setError();
       return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
-    const bool isRequest = (tokens[0] == "http-request");
+    const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
 
-    // TODO: determine the operation type (right now I'm assuming that it's always a set-header operation)
+    const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
+    HeaderProcessorUniquePtr processor;
 
-    // make new header processor
-    HeaderProcessorUniquePtr processor = std::make_unique<SetHeaderProcessor>();
+    switch(operation_type) {
+      case Utility::OperationType::SetHeader:
+        processor = std::make_unique<SetHeaderProcessor>();
+        break;
+      case Utility::OperationType::SetPath:
+        // TODO: implement set-path operation
+        ENVOY_LOG_MISC(info, "set path operation detected!");
+        return;
+      default:
+        fail("invalid operation type");
+        setError();
+        return;
+    }
 
     // parse operation
     absl::Status status = processor->parseOperation(tokens);
