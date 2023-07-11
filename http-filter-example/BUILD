@@ -62,7 +62,6 @@ envoy_cc_library(
     hdrs = ["utility.h",],
     repository = "@envoy",
     deps = [
-        ":pkg_cc_proto",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
     ],
 )

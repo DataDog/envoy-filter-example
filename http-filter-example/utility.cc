@@ -8,11 +8,11 @@ namespace Utility {
 
  OperationType StringToOperationType(absl::string_view operation) {
     if (operation == "set-header") {
-        return OperationType::kSetHeader;
+        return OperationType::SetHeader;
     } else if (operation == "set-path") {
-        return OperationType::kSetPath;
+        return OperationType::SetPath;
     } else {
-        return OperationType::kInvalidOperation;
+        return OperationType::InvalidOperation;
     }
 }
 

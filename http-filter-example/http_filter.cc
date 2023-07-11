@@ -47,16 +47,16 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
       setError();
       return; // TODO: should we quit here or continue to process operations that are grammatical?
     }
-    const bool isRequest = (tokens.at(0) == "http-request");
+    const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
 
-    Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
+    const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
     HeaderProcessorUniquePtr processor;
 
     switch(operation_type) {
-      case Utility::OperationType::kSetHeader:
+      case Utility::OperationType::SetHeader:
         processor = std::make_unique<SetHeaderProcessor>();
         break;
-      case Utility::OperationType::kSetPath:
+      case Utility::OperationType::SetPath:
         // TODO: implement set-path operation
         ENVOY_LOG_MISC(info, "set path operation detected!");
         return;

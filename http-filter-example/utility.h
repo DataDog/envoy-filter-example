@@ -14,10 +14,9 @@ constexpr absl::string_view HTTP_REQUEST = "http-request";
 constexpr absl::string_view HTTP_RESPONSE = "http-response";
 
 enum class OperationType : int {
-  kSetHeader,
-  kSetPath,
-  NUM_OPERATIONS,
-  kInvalidOperation,
+  SetHeader,
+  SetPath,
+  InvalidOperation,
 };
 
 OperationType StringToOperationType(absl::string_view operation);
