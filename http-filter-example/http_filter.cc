@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "http_filter.h"
+#include "utility.h"
 
 #include "source/common/common/utility.h"
 #include "source/common/common/logger.h"
@@ -34,29 +35,42 @@ HttpSampleDecoderFilter::HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSh
   // process each operation
   for (auto const& operation : operations) {
     auto tokens = StringUtil::splitToken(operation, " ");
-    if (tokens.size() < 3) {
+    if (tokens.size() < Utility::MIN_NUM_ARGUMENTS) {
       fail("too few arguments provided");
-      setError(1); // TODO: set error based on globally defined macros
+      setError();
       return;
     }
 
     // determine if it's request/response
-    if (tokens[0] != "http-request" && tokens[0] != "http-response") {
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
       fail("first argument must be <http-response/http-request>");
-      setError(1); // TODO: set error based on globally defined macros
+      setError();
       return;
     }
-    const bool isRequest = (tokens[0] == "http-request");
+    const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
 
-    // TODO: determine the operation type (right now I'm assuming that it's always a set-header operation)
+    const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
+    HeaderProcessorUniquePtr processor;
 
-    // make new header processor
-    HeaderProcessorUniquePtr processor = std::make_unique<SetHeaderProcessor>();
+    switch(operation_type) {
+      case Utility::OperationType::SetHeader:
+        processor = std::make_unique<SetHeaderProcessor>();
+        break;
+      case Utility::OperationType::SetPath:
+        // TODO: implement set-path operation
+        ENVOY_LOG_MISC(info, "set path operation detected!");
+        return;
+      default:
+        fail("invalid operation type");
+        setError();
+        return;
+    }
 
     // parse operation
-    if (processor->parseOperation(tokens)) {
-      fail("unable to parse operation");
-      setError(1); // TODO: set error based on globally defined macros
+    const absl::Status status = processor->parseOperation(tokens);
+    if (!status.ok()) {
+      fail(status.message());
+      setError();
       return;
     }
 
@@ -75,28 +89,16 @@ const std::string HttpSampleDecoderFilter::headerValue() const {
   return config_->val();
 }
 
-int HttpSampleDecoderFilter::getError() const {
-  return error_;
-}
-
-void HttpSampleDecoderFilter::setError(const int val) {
-  error_ = val;
-}
-
 Http::FilterHeadersStatus HttpSampleDecoderFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
-  int err = 0;
-
-  if (err) {
+  if (getError()) {
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter");
     return Http::FilterHeadersStatus::Continue;
   }
 
   // execute each operation
   // TODO: run this loop for the response side too once filter type is changed to Encoder/Decoder
   for (auto const& processor : request_header_processors_) {
-    if (processor->executeOperation(headers)) {
-      fail("unable to execute operation");
-      return Http::FilterHeadersStatus::Continue;
-    }
+    processor->executeOperation(headers);
   }
 
   return Http::FilterHeadersStatus::Continue;
