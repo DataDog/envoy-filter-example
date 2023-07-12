@@ -70,9 +70,18 @@ class SetBoolProcessor : public Processor {
 public:
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression);
-  virtual void executeOperation() const;
+  // virtual void executeOperation() const;
 
 private:
+  const std::string& getBoolName() const { return bool_name_; }
+  void setBoolName(absl::string_view bool_name) { bool_name_ = std::string(bool_name); }
+
+  const std::pair<std::string, std::string>& getStringsToCompare() const { return strings_to_compare_; }
+  void setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare);
+
+  Utility::MatchType getMatchType() const { return match_type_; }
+  void setMatchType(Utility::MatchType match_type) { match_type_ = match_type; }
+
   std::string bool_name_; // TODO: might only need to store this in the map
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;

@@ -11,6 +11,7 @@ namespace Utility {
 constexpr uint8_t MIN_NUM_ARGUMENTS = 2;
 constexpr uint8_t SET_HEADER_MIN_NUM_ARGUMENTS = 4;
 constexpr uint8_t SET_PATH_MIN_NUM_ARGUMENTS = 3;
+constexpr uint8_t SET_BOOL_MIN_NUM_ARGUMENTS = 5;
 
 constexpr absl::string_view HTTP_REQUEST = "http-request";
 constexpr absl::string_view HTTP_RESPONSE = "http-response";
@@ -26,6 +27,7 @@ enum class OperationType : int {
 enum class MatchType : int {
   Exact,
   Substr,
+  Found,
   InvalidMatchType,
 };
 

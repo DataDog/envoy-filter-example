@@ -23,6 +23,8 @@ MatchType StringToMatchType(absl::string_view match) {
         return MatchType::Exact;
     } else if (match == "sub") {
         return MatchType::Substr;
+    } else if (match == "found") {
+        return MatchType::Found;
     } else {
         return MatchType::InvalidMatchType;
     }
