@@ -70,10 +70,10 @@ class SetBoolProcessor : public Processor {
 public:
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression);
-  // virtual void executeOperation() const;
+  virtual bool executeOperation() const;
+  const std::string& getBoolName() const { return bool_name_; }
 
 private:
-  const std::string& getBoolName() const { return bool_name_; }
   void setBoolName(absl::string_view bool_name) { bool_name_ = std::string(bool_name); }
 
   const std::pair<std::string, std::string>& getStringsToCompare() const { return strings_to_compare_; }

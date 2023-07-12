@@ -66,8 +66,18 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         processor = std::make_unique<SetPathProcessor>();
         break;
       case Utility::OperationType::SetBool:
-        // TODO: add SetBoolProcessor
+      {
+        SetBoolProcessorUniquePtr processor = std::make_unique<SetBoolProcessor>();
+        const absl::Status status = processor->parseOperation(tokens);
+        if (!status.ok()) {
+          fail(status.message());
+          setError();
+          return;
+        }
+        const std::string boolName = processor->getBoolName();
+        set_bool_processors_.insert({boolName, std::move(processor)});
         break;
+      }
       default:
         fail("invalid operation type");
         setError();
@@ -82,9 +92,6 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         setError();
         return;
       }
-
-      // keep track of general operations to be executed
-      // TODO: add set-bool operations to map
 
       // keep track of request/response operations to be executed
       if (isRequest) {
@@ -128,8 +135,12 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
   // execute each operation
   for (auto const& processor : response_header_processors_) {
     processor->executeOperation(headers);
-    ENVOY_LOG_MISC(info, "added response header!"); // TODO: remove debug statement once response-side test setup is created
   }
+
+  // TODO: remove debug statement
+  // const bool result = set_bool_processors_.at("mock_bool")->executeOperation();
+  // if (result)
+  //   ENVOY_LOG_MISC(info, "match found!");
 
   return Http::FilterHeadersStatus::Continue;
 }
@@ -139,7 +150,6 @@ Http::FilterDataStatus HttpHeaderRewriteFilter::decodeData(Buffer::Instance&, bo
 }
 
 Http::FilterDataStatus HttpHeaderRewriteFilter::encodeData(Buffer::Instance&, bool) {
-  ENVOY_LOG_MISC(info, "encodeData function called"); // TODO: remove debug statement once response-side test setup is created
   return Http::FilterDataStatus::Continue;
 }
 

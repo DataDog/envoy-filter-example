@@ -141,6 +141,23 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
+    bool SetBoolProcessor::executeOperation() const {
+        const Utility::MatchType match_type = getMatchType();
+
+        bool result;
+
+        switch (match_type) {
+            case Utility::MatchType::Exact:
+                result = (getStringsToCompare().first == getStringsToCompare().second);
+                break;
+            // TODO: implement rest of the match cases
+            default:
+                result = false;
+        }
+
+        return result;
+    }
+
 
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters
