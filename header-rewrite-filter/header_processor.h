@@ -43,6 +43,7 @@ private:
   std::vector<std::string> header_vals_; // header values to set
 };
 
+// Note: path being set here includes the query string
 class SetPathProcessor : public HeaderProcessor {
 public:
   SetPathProcessor() {}

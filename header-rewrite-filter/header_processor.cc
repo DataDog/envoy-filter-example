@@ -91,7 +91,7 @@ namespace HeaderRewriteFilter {
         // cast to RequestHeaderMap because setPath is only on request side
         Http::RequestHeaderMap* request_headers = static_cast<Http::RequestHeaderMap*>(&headers);
         
-        // set path
+        // set path (path being set here includes the query string)
         request_headers->setPath(request_path); // should never return an error
     }
 

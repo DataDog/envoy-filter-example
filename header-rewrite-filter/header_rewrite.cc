@@ -62,6 +62,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
           setError();
           return;
         }
+        // path being set here includes the query string
         processor = std::make_unique<SetPathProcessor>();
         break;
       default:
