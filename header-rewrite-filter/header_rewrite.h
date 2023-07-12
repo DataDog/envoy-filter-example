@@ -27,7 +27,9 @@ private:
 };
 
 using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
+using ProcessorUniquePtr = std::unique_ptr<Processor>;
 using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
+using SetBoolProcessorUniquePtr = std::unique_ptr<SetBoolProcessor>;
 
 class HttpHeaderRewriteFilter : public Http::PassThroughFilter {
 public:
@@ -46,11 +48,11 @@ private:
   bool error_ = false;
 
   // header processors
-  std::vector<HeaderProcessorUniquePtr> request_header_processors_;
-  std::vector<HeaderProcessorUniquePtr> response_header_processors_;
+  std::vector<ProcessorUniquePtr> request_header_processors_;
+  std::vector<ProcessorUniquePtr> response_header_processors_;
 
-  // set of accepted operations
-  std::unordered_set<std::string> operations_;
+  // set_bool processors
+  std::unordered_map<std::string, ProcessorUniquePtr> set_bool_processors_;
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;

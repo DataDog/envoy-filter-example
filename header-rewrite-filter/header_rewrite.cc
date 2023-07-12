@@ -42,15 +42,16 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     }
 
     // determine if it's request/response
-    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
-      fail("first argument must be <http-response/http-request>");
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE && tokens.at(0) != Utility::HTTP_REQUEST_RESPONSE) {
+      fail("first argument must be <http-response/http-request/http>");
       setError();
       return;
     }
     const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
+    const bool isResponse = (tokens.at(0) == Utility::HTTP_RESPONSE);
 
     const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
-    HeaderProcessorUniquePtr processor;
+    ProcessorUniquePtr processor = nullptr;
 
     switch(operation_type) {
       case Utility::OperationType::SetHeader:
@@ -62,7 +63,11 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
           setError();
           return;
         }
+        // path being set here includes the query string
         processor = std::make_unique<SetPathProcessor>();
+        break;
+      case Utility::OperationType::SetBool:
+        processor = std::make_unique<SetBoolProcessor>();
         break;
       default:
         fail("invalid operation type");
@@ -71,18 +76,33 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     }
 
     // parse operation
-    const absl::Status status = processor->parseOperation(tokens);
-    if (!status.ok()) {
-      fail(status.message());
-      setError();
-      return;
-    }
+    if (processor) {
+      const absl::Status status = processor->parseOperation(tokens);
+      if (!status.ok()) {
+        fail(status.message());
+        setError();
+        return;
+      }
 
-    // keep track of operations to be executed
-    if (isRequest) {
-      request_header_processors_.push_back(std::move(processor));
-    } else {
-      response_header_processors_.push_back(std::move(processor));
+      // keep track of operations to be executed
+      if (isRequest) {
+        request_header_processors_.push_back(std::move(processor));
+      }
+      if (isResponse) {
+        response_header_processors_.push_back(std::move(processor));
+      }
+      if (operation_type == Utility::OperationType::SetBool) {
+        const std::string boolName(tokens.at(2));
+      
+        // make sure this boolean variable doesn't already exist in the map
+        if (set_bool_processors_.find(boolName) != set_bool_processors_.end()) {
+          fail("redefinition of boolean variable");
+          setError();
+          return;
+        }
+
+        set_bool_processors_.insert({boolName, std::move(processor)});
+      }
     }
   }
 }
@@ -118,7 +138,6 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
   // execute each operation
   for (auto const& processor : response_header_processors_) {
     processor->executeOperation(headers);
-    ENVOY_LOG_MISC(info, "added response header!"); // TODO: remove debug statement once response-side test setup is created
   }
 
   return Http::FilterHeadersStatus::Continue;
@@ -129,7 +148,6 @@ Http::FilterDataStatus HttpHeaderRewriteFilter::decodeData(Buffer::Instance&, bo
 }
 
 Http::FilterDataStatus HttpHeaderRewriteFilter::encodeData(Buffer::Instance&, bool) {
-  ENVOY_LOG_MISC(info, "encodeData function called"); // TODO: remove debug statement once response-side test setup is created
   return Http::FilterDataStatus::Continue;
 }
 
