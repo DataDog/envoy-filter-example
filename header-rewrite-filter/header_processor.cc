@@ -13,7 +13,7 @@ namespace HeaderRewriteFilter {
 
         // parse key and call setKey
         try {
-            absl::string_view key = operation_expression.at(2);
+            const absl::string_view key = operation_expression.at(2);
             setKey(key);
         } catch (const std::exception& e) {
             // should never happen, range is checked above
@@ -32,7 +32,7 @@ namespace HeaderRewriteFilter {
         }
 
         // parse condition expression and call evaluate conditions on the parsed expression
-        absl::Status status = evaluateCondition();
+        const absl::Status status = evaluateCondition();
         return status;
     }
 
@@ -76,12 +76,12 @@ namespace HeaderRewriteFilter {
         }
 
         // parse condition expression and call evaluate conditions on the parsed expression
-        absl::Status status = evaluateCondition();
+        const absl::Status status = evaluateCondition();
         return status;
     }
 
     void SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) const {
-        bool condition_result = getCondition(); // whether the condition is true or false
+        const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string request_path = getPath();
 
         if (!condition_result) {
