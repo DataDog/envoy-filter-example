@@ -57,9 +57,13 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         processor = std::make_unique<SetHeaderProcessor>();
         break;
       case Utility::OperationType::SetPath:
-        // TODO: implement set-path operation
-        ENVOY_LOG_MISC(info, "set path operation detected!");
-        return;
+        if (!isRequest) {
+          fail("set-path can only be on request");
+          setError();
+          return;
+        }
+        processor = std::make_unique<SetPathProcessor>();
+        break;
       default:
         fail("invalid operation type");
         setError();
@@ -113,8 +117,8 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    ENVOY_LOG_MISC(info, "added response header!"); // TODO: remove debug statement once response-side test setup is created
     processor->executeOperation(headers);
+    ENVOY_LOG_MISC(info, "added response header!"); // TODO: remove debug statement once response-side test setup is created
   }
 
   return Http::FilterHeadersStatus::Continue;
@@ -125,7 +129,7 @@ Http::FilterDataStatus HttpHeaderRewriteFilter::decodeData(Buffer::Instance&, bo
 }
 
 Http::FilterDataStatus HttpHeaderRewriteFilter::encodeData(Buffer::Instance&, bool) {
-  ENVOY_LOG_MISC(info, "encodeData"); // TODO: remove debug statement once response-side test setup is created
+  ENVOY_LOG_MISC(info, "encodeData function called"); // TODO: remove debug statement once response-side test setup is created
   return Http::FilterDataStatus::Continue;
 }
 
