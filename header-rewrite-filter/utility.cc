@@ -11,8 +11,20 @@ namespace Utility {
         return OperationType::SetHeader;
     } else if (operation == "set-path") {
         return OperationType::SetPath;
+    } else if (operation == "set-bool") {
+        return OperationType::SetBool;
     } else {
         return OperationType::InvalidOperation;
+    }
+}
+
+MatchType StringToMatchType(absl::string_view match) {
+    if (match == "str") {
+        return MatchType::Exact;
+    } else if (match == "sub") {
+        return MatchType::Substr;
+    } else {
+        return MatchType::InvalidMatchType;
     }
 }
 

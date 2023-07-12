@@ -46,6 +46,7 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite
               key: header-processing
               val: |
+                  http set-bool mock_bool matches -m str "matches"
                   http-request set-path mockpath
                   http-request set-header x-forwarded-proto https
                   http-response set-header mock_key mock_val1 mock_val2
@@ -71,4 +72,4 @@ static_resources:
             address:
               socket_address:
                 address: 127.0.0.1
-                port_value: 3000 # connected to dummy docker backend
+                port_value: 8000 # connected to dummy docker backend

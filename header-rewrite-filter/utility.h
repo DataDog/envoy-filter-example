@@ -14,14 +14,23 @@ constexpr uint8_t SET_PATH_MIN_NUM_ARGUMENTS = 3;
 
 constexpr absl::string_view HTTP_REQUEST = "http-request";
 constexpr absl::string_view HTTP_RESPONSE = "http-response";
+constexpr absl::string_view HTTP_REQUEST_RESPONSE = "http";
 
 enum class OperationType : int {
   SetHeader,
   SetPath,
+  SetBool,
   InvalidOperation,
 };
 
+enum class MatchType : int {
+  Exact,
+  Substr,
+  InvalidMatchType,
+};
+
 OperationType StringToOperationType(absl::string_view operation);
+MatchType StringToMatchType(absl::string_view match);
 
 } // namespace Utility
 } // namespace HeaderRewriteFilter

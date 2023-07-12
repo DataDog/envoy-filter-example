@@ -49,8 +49,7 @@ private:
   std::vector<HeaderProcessorUniquePtr> request_header_processors_;
   std::vector<HeaderProcessorUniquePtr> response_header_processors_;
 
-  // set of accepted operations
-  std::unordered_set<std::string> operations_;
+  // TODO: add bool map
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;

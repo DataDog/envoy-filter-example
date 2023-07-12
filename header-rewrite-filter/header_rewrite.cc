@@ -42,15 +42,16 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     }
 
     // determine if it's request/response
-    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
-      fail("first argument must be <http-response/http-request>");
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE && tokens.at(0) != Utility::HTTP_REQUEST_RESPONSE) {
+      fail("first argument must be <http-response/http-request/http>");
       setError();
       return;
     }
     const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
+    const bool isResponse = (tokens.at(0) == Utility::HTTP_RESPONSE);
 
     const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
-    HeaderProcessorUniquePtr processor;
+    HeaderProcessorUniquePtr processor = nullptr;
 
     switch(operation_type) {
       case Utility::OperationType::SetHeader:
@@ -64,6 +65,9 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         }
         processor = std::make_unique<SetPathProcessor>();
         break;
+      case Utility::OperationType::SetBool:
+        // TODO: add SetBoolProcessor
+        break;
       default:
         fail("invalid operation type");
         setError();
@@ -71,18 +75,24 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     }
 
     // parse operation
-    const absl::Status status = processor->parseOperation(tokens);
-    if (!status.ok()) {
-      fail(status.message());
-      setError();
-      return;
-    }
+    if (processor) {
+      const absl::Status status = processor->parseOperation(tokens);
+      if (!status.ok()) {
+        fail(status.message());
+        setError();
+        return;
+      }
 
-    // keep track of operations to be executed
-    if (isRequest) {
-      request_header_processors_.push_back(std::move(processor));
-    } else {
-      response_header_processors_.push_back(std::move(processor));
+      // keep track of general operations to be executed
+      // TODO: add set-bool operations to map
+
+      // keep track of request/response operations to be executed
+      if (isRequest) {
+        request_header_processors_.push_back(std::move(processor));
+      }
+      if (isResponse) {
+        response_header_processors_.push_back(std::move(processor));
+      }
     }
   }
 }

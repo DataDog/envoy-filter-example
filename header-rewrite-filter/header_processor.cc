@@ -1,5 +1,4 @@
 #include "header_processor.h"
-#include "utility.h"
 
 namespace Envoy {
 namespace Extensions {
