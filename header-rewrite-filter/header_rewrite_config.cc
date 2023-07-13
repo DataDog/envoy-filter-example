@@ -18,7 +18,7 @@ public:
                                                      const std::string&,
                                                      FactoryContext& context) override {
 
-    return createFilter(Envoy::MessageUtil::downcastAndValidate<const sample::Decoder&>(
+    return createFilter(Envoy::MessageUtil::downcastAndValidate<const envoy::extensions::filters::http::HeaderRewrite&>(
                             proto_config, context.messageValidationVisitor()),
                         context);
   }
@@ -27,20 +27,20 @@ public:
    *  Return the Protobuf Message that represents your config incase you have config proto
    */
   ProtobufTypes::MessagePtr createEmptyConfigProto() override {
-    return ProtobufTypes::MessagePtr{new sample::Decoder()};
+    return ProtobufTypes::MessagePtr{new envoy::extensions::filters::http::HeaderRewrite()};
   }
 
   std::string name() const override { return "sample"; }
 
 private:
-  Http::FilterFactoryCb createFilter(const sample::Decoder& proto_config, FactoryContext&) {
+  Http::FilterFactoryCb createFilter(const envoy::extensions::filters::http::HeaderRewrite& proto_config, FactoryContext&) {
     Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfigSharedPtr config =
         std::make_shared<Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfig>(
             Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfig(proto_config));
 
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
       auto filter = new Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilter(config);
-      callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{filter});
+      callbacks.addStreamFilter(Http::StreamFilterSharedPtr{filter});
     };
   }
 };
@@ -54,3 +54,4 @@ static Registry::RegisterFactory<HttpHeaderRewriteFilterConfigFactory, NamedHttp
 } // namespace Configuration
 } // namespace Server
 } // namespace Envoy
+ 

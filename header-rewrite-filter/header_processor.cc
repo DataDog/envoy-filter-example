@@ -38,7 +38,7 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void SetHeaderProcessor::executeOperation(Http::RequestHeaderMap& headers) const {
+    void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) const {
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();

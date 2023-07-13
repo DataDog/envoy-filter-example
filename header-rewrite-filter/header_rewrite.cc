@@ -21,7 +21,7 @@ void fail(absl::string_view msg) {
 }
 
 HttpHeaderRewriteFilterConfig::HttpHeaderRewriteFilterConfig(
-    const sample::Decoder& proto_config)
+    const envoy::extensions::filters::http::HeaderRewrite& proto_config)
     : key_(proto_config.key()), val_(proto_config.val()) {}
 
 HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr config)
@@ -77,6 +77,8 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     // keep track of operations to be executed
     if (isRequest) {
       request_header_processors_.push_back(std::move(processor));
+    } else {
+      response_header_processors_.push_back(std::move(processor));
     }
   }
 }
@@ -91,13 +93,27 @@ const std::string HttpHeaderRewriteFilter::headerValue() const {
 
 Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
   if (getError()) {
-    ENVOY_LOG_MISC(info, "invalid config, skipping filter");
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter (request side)");
     return Http::FilterHeadersStatus::Continue;
   }
 
   // execute each operation
-  // TODO: run this loop for the response side too once filter type is changed to Encoder/Decoder
   for (auto const& processor : request_header_processors_) {
+    processor->executeOperation(headers);
+  }
+
+  return Http::FilterHeadersStatus::Continue;
+}
+
+Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
+  if (getError()) {
+    ENVOY_LOG_MISC(info, "invalid config, skipping filter (response side)");
+    return Http::FilterHeadersStatus::Continue;
+  }
+
+  // execute each operation
+  for (auto const& processor : response_header_processors_) {
+    ENVOY_LOG_MISC(info, "added response header!"); // TODO: remove debug statement once response-side test setup is created
     processor->executeOperation(headers);
   }
 
@@ -108,8 +124,9 @@ Http::FilterDataStatus HttpHeaderRewriteFilter::decodeData(Buffer::Instance&, bo
   return Http::FilterDataStatus::Continue;
 }
 
-void HttpHeaderRewriteFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
-  decoder_callbacks_ = &callbacks;
+Http::FilterDataStatus HttpHeaderRewriteFilter::encodeData(Buffer::Instance&, bool) {
+  ENVOY_LOG_MISC(info, "encodeData"); // TODO: remove debug statement once response-side test setup is created
+  return Http::FilterDataStatus::Continue;
 }
 
 } // namespace HeaderRewriteFilter
