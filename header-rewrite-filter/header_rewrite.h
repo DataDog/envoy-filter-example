@@ -7,16 +7,16 @@
 
 #include "source/extensions/filters/http/common/pass_through_filter.h"
 #include "envoy/common/exception.h"
-#include "http-filter-example/http_filter.pb.h"
+#include "header-rewrite-filter/header_rewrite.pb.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 
-class HttpSampleDecoderFilterConfig {
+class HttpHeaderRewriteFilterConfig {
 public:
-  HttpSampleDecoderFilterConfig(const sample::Decoder& proto_config);
+  HttpHeaderRewriteFilterConfig(const sample::Decoder& proto_config);
 
   const std::string& key() const { return key_; }
   const std::string& val() const { return val_; }
@@ -26,13 +26,13 @@ private:
   const std::string val_;
 };
 
-using HttpSampleDecoderFilterConfigSharedPtr = std::shared_ptr<HttpSampleDecoderFilterConfig>;
+using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
 using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
 
-class HttpSampleDecoderFilter : public Http::PassThroughDecoderFilter {
+class HttpHeaderRewriteFilter : public Http::PassThroughDecoderFilter {
 public:
-  HttpSampleDecoderFilter(HttpSampleDecoderFilterConfigSharedPtr);
-  virtual ~HttpSampleDecoderFilter() {}
+  HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr);
+  virtual ~HttpHeaderRewriteFilter() {}
 
   void onDestroy() override {}
 
@@ -42,7 +42,7 @@ public:
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks&) override;
 
 private:
-  const HttpSampleDecoderFilterConfigSharedPtr config_;
+  const HttpHeaderRewriteFilterConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
   bool error_ = false;
 
@@ -65,7 +65,7 @@ private:
 //   using EnvoyException::EnvoyException;
 // };
 
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy

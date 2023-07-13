@@ -3,7 +3,7 @@
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace SampleFilter {
+namespace HeaderRewriteFilter {
 
     SetHeaderProcessor::SetHeaderProcessor() {}
 
@@ -53,7 +53,7 @@ namespace SampleFilter {
         }
     }
 
-} // namespace SampleFilter
+} // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy

@@ -12,7 +12,7 @@ envoy_cc_binary(
     name = "envoy",
     repository = "@envoy",
     deps = [
-        ":http_filter_config",
+        ":header_rewrite_config",
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
 )
@@ -20,14 +20,14 @@ envoy_cc_binary(
 api_proto_package()
 
 envoy_cc_library(
-    name = "http_filter_lib",
-    srcs = ["http_filter.cc"],
-    hdrs = ["http_filter.h"],
+    name = "header_rewrite_lib",
+    srcs = ["header_rewrite.cc"],
+    hdrs = ["header_rewrite.h"],
     repository = "@envoy",
     deps = [
         ":pkg_cc_proto",
-        ":http_header_processor_lib",
-        ":http_header_processor_utils_lib",
+        ":header_rewrite_processor_lib",
+        ":header_rewrite_utils_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
         "@envoy//source/common/common:utility_lib",
         "@envoy//source/common/common:minimal_logger_lib",
@@ -35,29 +35,29 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "http_filter_config",
-    srcs = ["http_filter_config.cc"],
+    name = "header_rewrite_config",
+    srcs = ["header_rewrite_config.cc"],
     repository = "@envoy",
     deps = [
-        ":http_filter_lib",
+        ":header_rewrite_lib",
         "@envoy//envoy/server:filter_config_interface",
     ],
 )
 
 envoy_cc_library(
-    name = "http_header_processor_lib",
+    name = "header_rewrite_processor_lib",
     srcs = ["header_processor.cc"],
     hdrs = [ "header_processor.h"],
     repository = "@envoy",
     deps = [
         ":pkg_cc_proto",
-        ":http_header_processor_utils_lib",
+        ":header_rewrite_utils_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
     ],
 )
 
 envoy_cc_library(
-    name = "http_header_processor_utils_lib",
+    name = "header_rewrite_utils_lib",
     srcs = ["utility.cc"],
     hdrs = ["utility.h",],
     repository = "@envoy",
@@ -67,11 +67,11 @@ envoy_cc_library(
 )
 
 envoy_cc_test(
-    name = "http_filter_integration_test",
-    srcs = ["http_filter_integration_test.cc"],
+    name = "header_rewrite_integration_test",
+    srcs = ["header_rewrite_integration_test.cc"],
     repository = "@envoy",
     deps = [
-        ":http_filter_config",
+        ":header_rewrite_config",
         "@envoy//test/integration:http_integration_lib",
     ],
 )

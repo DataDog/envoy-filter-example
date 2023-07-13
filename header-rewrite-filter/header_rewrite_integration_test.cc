@@ -1,10 +1,10 @@
 #include "test/integration/http_integration.h"
 
 namespace Envoy {
-class HttpFilterSampleIntegrationTest : public HttpIntegrationTest,
+class HttpFilterHeaderRewriteIntegrationTest : public HttpIntegrationTest,
                                         public testing::TestWithParam<Network::Address::IpVersion> {
 public:
-  HttpFilterSampleIntegrationTest()
+  HttpFilterHeaderRewriteIntegrationTest()
       : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam()) {}
   /**
    * Initializer for an individual integration test.
@@ -19,10 +19,10 @@ public:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterSampleIntegrationTest,
+INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterHeaderRewriteIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
-TEST_P(HttpFilterSampleIntegrationTest, Test1) {
+TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
   Http::TestRequestHeaderMapImpl headers{
       {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
   Http::TestRequestHeaderMapImpl response_headers{

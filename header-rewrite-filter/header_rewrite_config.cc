@@ -3,15 +3,16 @@
 #include "envoy/registry/registry.h"
 #include "envoy/server/filter_config.h"
 
-#include "http-filter-example/http_filter.pb.h"
-#include "http-filter-example/http_filter.pb.validate.h"
-#include "http_filter.h"
+#include "header-rewrite-filter/header_rewrite.pb.h"
+#include "header-rewrite-filter/header_rewrite.pb.validate.h"
+#include "header_rewrite.h"
+
 
 namespace Envoy {
 namespace Server {
 namespace Configuration {
 
-class HttpSampleDecoderFilterConfigFactory : public NamedHttpFilterConfigFactory {
+class HttpHeaderRewriteFilterConfigFactory : public NamedHttpFilterConfigFactory {
 public:
   Http::FilterFactoryCb createFilterFactoryFromProto(const Protobuf::Message& proto_config,
                                                      const std::string&,
@@ -33,12 +34,12 @@ public:
 
 private:
   Http::FilterFactoryCb createFilter(const sample::Decoder& proto_config, FactoryContext&) {
-    Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfigSharedPtr config =
-        std::make_shared<Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfig>(
-            Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilterConfig(proto_config));
+    Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfigSharedPtr config =
+        std::make_shared<Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfig>(
+            Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilterConfig(proto_config));
 
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      auto filter = new Extensions::HttpFilters::SampleFilter::HttpSampleDecoderFilter(config);
+      auto filter = new Extensions::HttpFilters::HeaderRewriteFilter::HttpHeaderRewriteFilter(config);
       callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{filter});
     };
   }
@@ -47,7 +48,7 @@ private:
 /**
  * Static registration for this sample filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<HttpSampleDecoderFilterConfigFactory, NamedHttpFilterConfigFactory>
+static Registry::RegisterFactory<HttpHeaderRewriteFilterConfigFactory, NamedHttpFilterConfigFactory>
     register_;
 
 } // namespace Configuration
