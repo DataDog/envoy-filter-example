@@ -68,7 +68,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
       case Utility::OperationType::SetBool:
       {
         SetBoolProcessorUniquePtr processor = std::make_unique<SetBoolProcessor>();
-        const absl::Status status = processor->parseOperation(tokens);
+        const absl::Status status = processor->parseOperation(tokens, tokens.begin());
         if (!status.ok()) {
           fail(status.message());
           setError();
@@ -86,7 +86,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
 
     // parse operation
     if (processor) {
-      const absl::Status status = processor->parseOperation(tokens);
+      const absl::Status status = processor->parseOperation(tokens, tokens.begin());
       if (!status.ok()) {
         fail(status.message());
         setError();

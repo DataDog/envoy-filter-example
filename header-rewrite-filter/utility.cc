@@ -30,6 +30,50 @@ MatchType StringToMatchType(absl::string_view match) {
     }
 }
 
+BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator) {
+    if (bool_operator == "and") {
+        return BooleanOperatorType::And;
+    } else if (bool_operator == "or") {
+        return BooleanOperatorType::Or;
+    } else if (bool_operator == "not") {
+        return BooleanOperatorType::Not;
+    } else {
+        return BooleanOperatorType::None;
+    }
+}
+
+bool isOperator(BooleanOperatorType operator_type) {
+    return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or || operator_type == BooleanOperatorType::Not);
+}
+
+bool isBinaryOperator(BooleanOperatorType operator_type) {
+    return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or);
+}
+
+// bool isOperand(BooleanOperatorType operator_type) {
+//     return operator_type == BooleanOperatorType::None;
+// }
+
+bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
+    // TODO: remove mock values
+    
+    bool op1 = operand1.second ? !true : true;
+    bool op2 = operand2.second ? !true : true;
+
+    if (operator_val == BooleanOperatorType::And) return op1 && op2;
+    return op1 || op2;
+}
+
+bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
+    // TODO: remove mock values
+
+    bool op2 = operand2.second ? !true : true;
+
+    if (operator_val == BooleanOperatorType::And) return operand1 && op2;
+    return operand1 || op2;
+}
+
+
 } // namespace Utility
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters

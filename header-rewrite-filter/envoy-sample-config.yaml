@@ -48,7 +48,7 @@ static_resources:
               val: |
                   http set-bool mock_bool matches -m str matches
                   http-request set-path mockpath
-                  http-request set-header x-forwarded-proto https
+                  http-request set-header x-forwarded-proto https if A and B and not C
                   http-response set-header mock_key mock_val1 mock_val2
           - name: envoy.filters.http.router
             typed_config:

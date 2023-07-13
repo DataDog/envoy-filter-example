@@ -31,8 +31,23 @@ enum class MatchType : int {
   InvalidMatchType,
 };
 
+enum class BooleanOperatorType : int {
+  And,
+  Or,
+  Not,
+  None,
+};
+
 OperationType StringToOperationType(absl::string_view operation);
 MatchType StringToMatchType(absl::string_view match);
+BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator);
+
+bool isOperator(BooleanOperatorType operator_type);
+bool isBinaryOperator(BooleanOperatorType operator_type);
+bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2);
+bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2);
+
+// bool isOperand(BooleanOperatorType operator_type);
 
 } // namespace Utility
 } // namespace HeaderRewriteFilter
