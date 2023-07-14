@@ -7,6 +7,15 @@ namespace Extensions {
 namespace HttpFilters {
 namespace HeaderRewriteFilter {
 
+    absl::Status HeaderProcessor::ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start) {
+        if (start == condition_expression.end()) {
+            return absl::InvalidArgumentError("empty condition provided");
+        }
+
+        setConditionProcessor(std::make_shared<ConditionProcessor>());
+        return getConditionProcessor()->parseOperation(condition_expression, start); // pass everything after the "if"
+    }
+
     absl::Status SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         if (operation_expression.size() < Utility::SET_HEADER_MIN_NUM_ARGUMENTS) {
             return absl::InvalidArgumentError("not enough arguments for set-header");
@@ -51,36 +60,40 @@ namespace HeaderRewriteFilter {
         // call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
         if (getConditionProcessor()) {
-            result = getConditionProcessor()->executeOperation();
+            const absl::Status status = getConditionProcessor()->executeOperation(getConditionProcessor()->getBoolProcessors());
+            if (status != absl::OkStatus()) {
+                return status;
+            }
+            result = getConditionProcessor()->getConditionResult();
         }
         setCondition(result);
 
         return absl::OkStatus();
     }
 
-    absl::Status HeaderProcessor::ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start) {
-        if (start == condition_expression.end()) {
-            return absl::InvalidArgumentError("empty condition provided");
+    absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
+        const ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
+        if (condition_processor) {
+            condition_processor->setBoolProccessors(bool_processors);
         }
-
-        setConditionProcessor(std::make_shared<ConditionProcessor>());
-        return getConditionProcessor()->parseOperation(condition_expression, start); // pass everything after the "if"
-    }
-
-    void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
-        evaluateCondition();
-        bool condition_result = getCondition(); // whether the condition is true or false
+        const absl::Status status = evaluateCondition();
+        if (status != absl::OkStatus()) {
+            return status;
+        }
+        const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
         if (!condition_result) {
-            return; // do nothing because condition is false
+            return absl::OkStatus(); // do nothing because condition is false
         }
         
         // set header
         for (auto const& header_val : header_vals) {
             headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
+
+        return absl::OkStatus();
     }
 
     absl::Status SetPathProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -116,13 +129,21 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
-        evaluateCondition();
+    absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
+        const ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
+        if (condition_processor) {
+            condition_processor->setBoolProccessors(bool_processors);
+        }
+        const absl::Status status = evaluateCondition();
+        if (status != absl::OkStatus()) {
+            return status;
+        }
+
         const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string request_path = getPath();
 
         if (!condition_result) {
-            return; // do nothing because condition is false
+            return absl::OkStatus(); // do nothing because condition is false
         }
 
         // cast to RequestHeaderMap because setPath is only on request side
@@ -130,6 +151,8 @@ namespace HeaderRewriteFilter {
         
         // set path (path being set here includes the query string)
         request_headers->setPath(request_path); // should never return an error
+
+        return absl::OkStatus();
     }
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
@@ -181,7 +204,7 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
+    absl::Status SetBoolProcessor::executeOperation() {
         const Utility::MatchType match_type = getMatchType();
 
         bool result;
@@ -190,12 +213,16 @@ namespace HeaderRewriteFilter {
             case Utility::MatchType::Exact:
                 result = (getStringsToCompare().first == getStringsToCompare().second);
                 break;
+            case Utility::MatchType::Substr:
+                break;
             // TODO: implement rest of the match cases
             default:
                 result = false;
         }
 
         result_ = result;
+
+        return absl::OkStatus();
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -241,30 +268,56 @@ namespace HeaderRewriteFilter {
             }
         }
 
-        // TODO: validate number of operands and operators
-        return absl::OkStatus();
+        // validate number of operands and operators
+        return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
     }
 
-    bool ConditionProcessor::executeOperation() {
-        if (operands_.size() == 1) {
-            return operands_.at(0).second ? false : true; // TODO: remove mock value
+    absl::Status ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
+        try {
+            absl::Status status;
+            bool bool_var;
+            SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(operands_.at(0).first));
+            if (operands_.size() >= 1) { // this function should never be called if there are no operands
+                // look up the bool in the map, evaluate the value of the bool, and store the result
+                status = bool_processor->executeOperation();
+                if (status != absl::OkStatus()) {
+                    return status;
+                }
+                bool_var = bool_processor->getResult();
+                if (operands_.size() == 1) {
+                    condition_ = operands_.at(0).second ? !bool_var : bool_var;
+                    return absl::OkStatus();
+                }
+            }
+
+            bool result = bool_var;
+
+            auto operators_it = operators_.begin();
+            auto operands_it = operands_.begin() + 1;
+
+            // continue evaluating the condition from left to right
+            while (operators_it != operators_.end() && operands_it != operands_.end()) {
+                bool_processor = set_bool_processors->at(std::string((*operands_it).first));
+                status = bool_processor->executeOperation();
+                if (status != absl::OkStatus()) {
+                    return status;
+                }
+                bool_var = bool_processor->getResult();
+                bool operand = (*operands_it).second ? !bool_var : bool_var;
+                result = Utility::evaluateExpression(result, *operators_it, operand);
+                operators_it++;
+                operands_it++;
+            }
+            
+            // store the result
+            condition_ = result;
+
+            return absl::OkStatus();
+
+        } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
+            std::cout << e.what();
+            return absl::InvalidArgumentError("failed to process condition");
         }
-
-        bool result = true;
-
-        // evaluate first operation
-        result = Utility::evaluateExpression(operands_.at(0), operators_.at(0), operands_.at(1));
-
-        auto operators_it = operators_.begin() + 1;
-        auto operands_it = operands_.begin() + 2;
-
-        while (operators_it != operators_.end() && operands_it != operands_.end()) {
-            result = Utility::evaluateExpression(result, *operators_it, *operands_it);
-            operators_it++;
-            operands_it++;
-        }
-
-        return result;
     }
 
 } // namespace HeaderRewriteFilter

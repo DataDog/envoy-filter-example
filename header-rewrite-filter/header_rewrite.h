@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_set>
 
 #include "header_processor.h"
 
@@ -27,9 +26,9 @@ private:
 };
 
 using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
-using ProcessorUniquePtr = std::unique_ptr<Processor>;
 using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
-using SetBoolProcessorUniquePtr = std::unique_ptr<SetBoolProcessor>;
+using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
+using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
 
 class HttpHeaderRewriteFilter : public Http::PassThroughFilter {
 public:
@@ -48,23 +47,17 @@ private:
   bool error_ = false;
 
   // header processors
-  std::vector<ProcessorUniquePtr> request_header_processors_;
-  std::vector<ProcessorUniquePtr> response_header_processors_;
+  std::vector<HeaderProcessorUniquePtr> request_header_processors_;
+  std::vector<HeaderProcessorUniquePtr> response_header_processors_;
 
   // set_bool processors
-  std::unordered_map<std::string, ProcessorUniquePtr> set_bool_processors_;
+  SetBoolProcessorMapSharedPtr set_bool_processors_;
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;
   void setError() { error_ = true; }
   bool getError() const { return error_; };
 };
-
-// TODO: might need to throw an exception in the future
-// class FilterException : public EnvoyException {
-// public:
-//   using EnvoyException::EnvoyException;
-// };
 
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters
