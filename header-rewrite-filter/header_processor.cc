@@ -51,7 +51,7 @@ namespace HeaderRewriteFilter {
         
         // set header
         for (auto const& header_val : header_vals) {
-            headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
+            headers.setCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
     }
 

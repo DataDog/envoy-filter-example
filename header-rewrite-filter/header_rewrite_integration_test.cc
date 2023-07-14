@@ -25,7 +25,7 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterHeaderRewriteIntegrationTest,
 
 TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
   SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
-    "val: http-request set-header x-forwarded-proto https } }");
+    "val: http-request set-header sample_header sample_value } }");
   Http::TestRequestHeaderMapImpl headers{
       {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
   Http::TestRequestHeaderMapImpl response_headers{
@@ -44,8 +44,8 @@ TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
   ASSERT_TRUE(response->waitForEndStream());
 
   EXPECT_EQ(
-      "http,https",
-      request_stream->headers().get(Http::LowerCaseString("x-forwarded-proto"))[0]->value().getStringView());
+      "sample_value",
+      request_stream->headers().get(Http::LowerCaseString("sample_header"))[0]->value().getStringView());
 
   codec_client->close();
 }
