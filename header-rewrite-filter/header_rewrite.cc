@@ -67,7 +67,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         break;
       case Utility::OperationType::SetBool:
       {
-        SetBoolProcessorUniquePtr processor = std::make_unique<SetBoolProcessor>();
+        SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>();
         const absl::Status status = processor->parseOperation(tokens, tokens.begin());
         if (!status.ok()) {
           fail(status.message());
@@ -118,10 +118,13 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
     return Http::FilterHeadersStatus::Continue;
   }
 
+  // make a pointer to the bool map
+  std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>> set_bool_processor_shared_ptr = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>(set_bool_processors_);
+
   // execute each operation
   for (auto const& processor : request_header_processors_) {
     ENVOY_LOG_MISC(info, "executing request operation");
-    processor->executeOperation(headers);
+    processor->executeOperation(headers, set_bool_processor_shared_ptr);
   }
 
   ENVOY_LOG_MISC(info, "finished executing response operations");
@@ -135,10 +138,13 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
     return Http::FilterHeadersStatus::Continue;
   }
 
+  // make a pointer to the bool map
+  std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>> set_bool_processor_shared_ptr = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>(set_bool_processors_);
+
   // execute each operation
   for (auto const& processor : response_header_processors_) {
     ENVOY_LOG_MISC(info, "executing response operation");
-    processor->executeOperation(headers);
+    processor->executeOperation(headers, set_bool_processor_shared_ptr);
   }
 
     ENVOY_LOG_MISC(info, "finished executing response operation");

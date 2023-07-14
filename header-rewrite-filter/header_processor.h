@@ -14,77 +14,14 @@ namespace HeaderRewriteFilter {
 
 class Processor {
 public:
+  Processor() {}
   virtual ~Processor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
 };
 
-class ConditionProcessor : public Processor {
-public:
-  virtual ~ConditionProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  bool executeOperation();
-
-private:
-  std::vector<Utility::BooleanOperatorType> operators_;
-  std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
-  bool isTrue_; // not needed? can directly return the result without storing it
-};
-
-using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
-
-class HeaderProcessor : public Processor {
-public:
-  virtual ~HeaderProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers) = 0;
-  virtual void evaluateCondition() = 0; // TODO: implement this in parent class
-  bool getCondition() const { return condition_; }
-  void setCondition(bool result) { condition_ = result; }
-  void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
-  ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
-
-protected:
-  bool condition_;
-  ConditionProcessorSharedPtr condition_processor_ = nullptr;
-};
-
-class SetHeaderProcessor : public HeaderProcessor {
-public:
-  SetHeaderProcessor() {}
-  virtual ~SetHeaderProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers);
-  virtual void evaluateCondition(); // TODO: will need to pass http-related metadata in order to evaluate dynamic values
-
-private:
-  // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
-  const std::string& getKey() const { return header_key_; }
-  const std::vector<std::string>& getVals() const { return header_vals_; }
-
-  void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
-
-  std::string header_key_; // header key to set
-  std::vector<std::string> header_vals_; // header values to set
-};
-
-class SetPathProcessor : public HeaderProcessor {
-public:
-  SetPathProcessor() {}
-  virtual ~SetPathProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers);
-  virtual void evaluateCondition(); // TODO: possibly combine with SetHeader implementation and move code into HeaderProcessor
-
-private:
-  const std::string& getPath() const { return request_path_; }
-  void setPath(absl::string_view path) { request_path_ = std::string(path); }
-
-  std::string request_path_; // path to set
-};
-
 class SetBoolProcessor : public Processor {
 public:
+  SetBoolProcessor() {}
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual bool executeOperation() const;
@@ -102,6 +39,78 @@ private:
   std::string bool_name_; // TODO: might only need to store this in the map
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
+};
+
+using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
+using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
+
+class ConditionProcessor : public Processor {
+public:
+  ConditionProcessor() {}
+  virtual ~ConditionProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
+  bool executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors);
+
+  // TODO: remove this?
+  SetBoolProcessorMapSharedPtr getBoolProcessors() { return set_bool_processors_; }
+  void setBoolProccessors(SetBoolProcessorMapSharedPtr bool_processors) { set_bool_processors_ = bool_processors; }
+
+private:
+  std::vector<Utility::BooleanOperatorType> operators_;
+  std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
+  SetBoolProcessorMapSharedPtr set_bool_processors_ = nullptr;
+  bool isTrue_; // not needed? can directly return the result without storing it
+};
+
+using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
+
+class HeaderProcessor : public Processor {
+public:
+  HeaderProcessor() {}
+  virtual ~HeaderProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
+  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) = 0;
+  virtual void evaluateCondition(); // TODO: implement this in parent class
+  bool getCondition() const { return condition_; }
+  void setCondition(bool result) { condition_ = result; }
+  void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
+  ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
+
+protected:
+  bool condition_;
+  ConditionProcessorSharedPtr condition_processor_ = nullptr;
+};
+
+class SetHeaderProcessor : public HeaderProcessor {
+public:
+  SetHeaderProcessor() {}
+  virtual ~SetHeaderProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
+  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+private:
+  // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
+  const std::string& getKey() const { return header_key_; }
+  const std::vector<std::string>& getVals() const { return header_vals_; }
+
+  void setKey(absl::string_view key) { header_key_ = std::string(key); }
+  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
+
+  std::string header_key_; // header key to set
+  std::vector<std::string> header_vals_; // header values to set
+};
+
+class SetPathProcessor : public HeaderProcessor {
+public:
+  SetPathProcessor() {}
+  virtual ~SetPathProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
+  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+
+private:
+  const std::string& getPath() const { return request_path_; }
+  void setPath(absl::string_view path) { request_path_ = std::string(path); }
+
+  std::string request_path_; // path to set
 };
 
 } // namespace HeaderRewriteFilter
