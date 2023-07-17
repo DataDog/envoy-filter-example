@@ -23,9 +23,10 @@ public:
 INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterHeaderRewriteIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
+// test adding a new header key-value pair
 TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
   SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
-    "val: http-request set-header sample_header sample_value } }");
+    "val: http-request set-header sample_key sample_value } }");
   Http::TestRequestHeaderMapImpl headers{
       {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
   Http::TestRequestHeaderMapImpl response_headers{
@@ -45,7 +46,35 @@ TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
 
   EXPECT_EQ(
       "sample_value",
-      request_stream->headers().get(Http::LowerCaseString("sample_header"))[0]->value().getStringView());
+      request_stream->headers().get(Http::LowerCaseString("sample_key"))[0]->value().getStringView());
+
+  codec_client->close();
+}
+
+// test adding a new value to an already existing header
+TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test2) {
+  SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
+    "val: http-request set-header sample_key sample_value2 sample_value3 } }");
+  Http::TestRequestHeaderMapImpl headers{
+      {":method", "GET"}, {":path", "/"}, {":authority", "host"}, {"sample_key", "sample_value1"}};
+  Http::TestRequestHeaderMapImpl response_headers{
+      {":status", "200"}};
+
+  IntegrationCodecClientPtr codec_client;
+  FakeHttpConnectionPtr fake_upstream_connection;
+  FakeStreamPtr request_stream;
+
+  codec_client = makeHttpConnection(lookupPort("http"));
+  auto response = codec_client->makeHeaderOnlyRequest(headers);
+  ASSERT_TRUE(fake_upstreams_[0]->waitForHttpConnection(*dispatcher_, fake_upstream_connection));
+  ASSERT_TRUE(fake_upstream_connection->waitForNewStream(*dispatcher_, request_stream));
+  ASSERT_TRUE(request_stream->waitForEndStream(*dispatcher_));
+  request_stream->encodeHeaders(response_headers, true);
+  ASSERT_TRUE(response->waitForEndStream());
+
+  EXPECT_EQ(
+      "sample_value1,sample_value2,sample_value3",
+      request_stream->headers().get(Http::LowerCaseString("sample_key"))[0]->value().getStringView());
 
   codec_client->close();
 }
