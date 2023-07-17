@@ -1,5 +1,7 @@
 #include "header_processor.h"
 
+#include "source/common/common/logger.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
@@ -27,6 +29,7 @@ namespace HeaderRewriteFilter {
             std::vector<std::string> vals;
             for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
+                    ENVOY_LOG_MISC(info, "condition found");
                     setConditionProcessor(std::make_shared<ConditionProcessor>());
                     const absl::Status status = getConditionProcessor()->parseOperation(operation_expression, it+1); // pass everything after the "if"
                     if (status != absl::OkStatus()) {
@@ -50,13 +53,17 @@ namespace HeaderRewriteFilter {
         // TODO: if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
         if (getConditionProcessor()) {
+            ENVOY_LOG_MISC(info, "start executing condition");
             result = getConditionProcessor()->executeOperation();
         }
+        ENVOY_LOG_MISC(info, "finish executing condition");
         setCondition(result);
     }
 
     void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
+        ENVOY_LOG_MISC(info, "start evaluating condition");
         evaluateCondition();
+        ENVOY_LOG_MISC(info, "finish evaluating condition");
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
@@ -69,13 +76,18 @@ namespace HeaderRewriteFilter {
         for (auto const& header_val : header_vals) {
             headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
+
+        ENVOY_LOG_MISC(info, "added header");
     }
 
-     void SetPathProcessor::evaluateCondition() {
+    void SetPathProcessor::evaluateCondition() {
         // TODO: if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
-        if (getConditionProcessor()) {
+        if (getConditionProcessor() != nullptr) {
+            ENVOY_LOG_MISC(info, "executing set path's condition operation");
             result = getConditionProcessor()->executeOperation();
+        } else {
+            ENVOY_LOG_MISC(info, "no set path condition detected");
         }
         setCondition(result);
     }
@@ -103,8 +115,6 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("error parsing request path argument");
         }
 
-        // call evaluate conditions on the parsed expression
-        // const absl::Status status = evaluateCondition();
         return absl::OkStatus();
     }
 
@@ -122,7 +132,6 @@ namespace HeaderRewriteFilter {
         // set path
         request_headers->setPath(request_path); // should never return an error
     }
-
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
         std::string first_string = std::string(strings_to_compare.first);
@@ -244,14 +253,12 @@ namespace HeaderRewriteFilter {
     }
 
     bool ConditionProcessor::executeOperation() {
-        // return true;
         if (operands_.size() == 1) {
             return operands_.at(0).second ? false : true; // TODO: remove mock value
         }
 
-        // return false;
 
-        bool result;
+        bool result = true;
 
         // evaluate first operation
         result = Utility::evaluateExpression(operands_.at(0), operators_.at(0), operands_.at(1));
@@ -261,6 +268,8 @@ namespace HeaderRewriteFilter {
 
         while (operators_it != operators_.end() && operands_it != operands_.end()) {
             result = Utility::evaluateExpression(result, *operators_it, *operands_it);
+            operators_it++;
+            operands_it++;
         }
 
         return result;

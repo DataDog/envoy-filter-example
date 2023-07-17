@@ -52,6 +52,7 @@ envoy_cc_library(
     deps = [
         ":pkg_cc_proto",
         ":header_rewrite_utils_lib",
+        "@envoy//source/common/common:minimal_logger_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
     ],
 )

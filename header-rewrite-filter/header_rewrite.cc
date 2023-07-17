@@ -120,8 +120,11 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
+    ENVOY_LOG_MISC(info, "executing request operation");
     processor->executeOperation(headers);
   }
+
+  ENVOY_LOG_MISC(info, "finished executing response operations");
 
   return Http::FilterHeadersStatus::Continue;
 }
@@ -134,13 +137,16 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
+    ENVOY_LOG_MISC(info, "executing response operation");
     processor->executeOperation(headers);
   }
 
+    ENVOY_LOG_MISC(info, "finished executing response operation");
+
   // TODO: remove debug statement
-  // const bool result = set_bool_processors_.at("mock_bool")->executeOperation();
-  // if (result)
-  //   ENVOY_LOG_MISC(info, "match found!");
+  const bool result = set_bool_processors_.at("mock_bool")->executeOperation();
+  if (result)
+    ENVOY_LOG_MISC(info, "match found!");
 
   return Http::FilterHeadersStatus::Continue;
 }
