@@ -29,7 +29,12 @@ namespace HeaderRewriteFilter {
             std::vector<std::string> vals;
             for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
-                    ENVOY_LOG_MISC(info, "condition found");
+                    ENVOY_LOG_MISC(info, "condition found"); // TODO: remove debug
+
+                    if (it + 1 == operation_expression.end()) {
+                    return absl::InvalidArgumentError("empty condition provided");
+                    }
+
                     setConditionProcessor(std::make_shared<ConditionProcessor>());
                     const absl::Status status = getConditionProcessor()->parseOperation(operation_expression, it+1); // pass everything after the "if"
                     if (status != absl::OkStatus()) {
@@ -105,11 +110,22 @@ namespace HeaderRewriteFilter {
             absl::string_view request_path = operation_expression.at(2); // TODO: use start
             setPath(request_path);
 
-            // TODO: if there's more args, evaluate them (should only be a condition)
-            // if condition found
-                    // declare a ConditionProcessor
-                    // call parseOperation on the processor
+            if (operation_expression.size() > 3) {
+                auto it = operation_expression.begin() + 3;
+                if (*it != "if") {
+                    return absl::InvalidArgumentError("second argument to set-path must be a condition");
+                }
 
+                if (it + 1 == operation_expression.end()) {
+                    return absl::InvalidArgumentError("empty condition provided");
+                }
+
+                setConditionProcessor(std::make_shared<ConditionProcessor>());
+                const absl::Status status = getConditionProcessor()->parseOperation(operation_expression, it+1); // pass everything after the "if"
+                if (status != absl::OkStatus()) {
+                    return status;
+                }
+            }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
             return absl::InvalidArgumentError("error parsing request path argument");
@@ -119,6 +135,7 @@ namespace HeaderRewriteFilter {
     }
 
     void SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
+        evaluateCondition();
         const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string request_path = getPath();
 
