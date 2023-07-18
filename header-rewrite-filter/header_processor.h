@@ -36,7 +36,7 @@ private:
   Utility::MatchType getMatchType() const { return match_type_; }
   void setMatchType(Utility::MatchType match_type) { match_type_ = match_type; }
 
-  std::string bool_name_; // TODO: might only need to store this in the map
+  std::string bool_name_;
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
 };
