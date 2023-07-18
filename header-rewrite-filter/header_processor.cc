@@ -302,6 +302,7 @@ namespace HeaderRewriteFilter {
             return absl::OkStatus();
 
         } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
+            std::cout << e.what();
             return absl::InvalidArgumentError("failed to process condition");
         }
     }

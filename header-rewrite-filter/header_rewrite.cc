@@ -122,8 +122,10 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
-    if (processor->executeOperation(headers, set_bool_processors_) != absl::OkStatus()) {
-      ENVOY_LOG_MISC(info, "error executing an operation, skipping filter"); // TODO: some ops are executed, do any ops depend on previous ones?
+    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    if (status != absl::OkStatus()) {
+      ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter");
+      ENVOY_LOG_MISC(info, status.message());
       return Http::FilterHeadersStatus::Continue;
     }
   }
@@ -139,8 +141,10 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    if (processor->executeOperation(headers, set_bool_processors_) != absl::OkStatus()) {
-      ENVOY_LOG_MISC(info, "error executing an operation, skipping filter");
+    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    if (status != absl::OkStatus()) {
+      ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter");
+      ENVOY_LOG_MISC(info, status.message());
       return Http::FilterHeadersStatus::Continue;
     }
   }
