@@ -54,23 +54,21 @@ bool isBinaryOperator(BooleanOperatorType operator_type) {
 //     return operator_type == BooleanOperatorType::None;
 // }
 
-bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
-    // TODO: remove mock values
+// bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
+//     // TODO: add error checks for invalid access
     
-    bool op1 = operand1.second ? !true : true;
-    bool op2 = operand2.second ? !true : true;
+//     bool op1 = operand1.second ? !(bool_processors->at(operand1.first)->executeOperation()) : bool_processors->at(operand1.first)->executeOperation();
+//     bool op2 = operand2.second ? !(bool_processors->at(operand2.first)->executeOperation()) : bool_processors->at(operand2.first)->executeOperation();
 
-    if (operator_val == BooleanOperatorType::And) return op1 && op2;
-    return op1 || op2;
-}
+//     if (operator_val == BooleanOperatorType::And) return op1 && op2;
+//     return op1 || op2;
+// }
 
-bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
-    // TODO: remove mock values
+bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2) {
+    // TODO: add error checks for invalid access
 
-    bool op2 = operand2.second ? !true : true;
-
-    if (operator_val == BooleanOperatorType::And) return operand1 && op2;
-    return operand1 || op2;
+    if (operator_val == BooleanOperatorType::And) return operand1 && operand2;
+    return operand1 || operand2;
 }
 
 

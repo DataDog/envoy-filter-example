@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <unordered_set>
+// #include <unordered_set>
 
 #include "header_processor.h"
 
@@ -29,6 +29,7 @@ private:
 using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
 using HeaderProcessorUniquePtr = std::unique_ptr<HeaderProcessor>;
 using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
+using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
 
 class HttpHeaderRewriteFilter : public Http::PassThroughFilter {
 public:
@@ -51,7 +52,7 @@ private:
   std::vector<HeaderProcessorUniquePtr> response_header_processors_;
 
   // set_bool processors
-  std::unordered_map<std::string, SetBoolProcessorSharedPtr> set_bool_processors_;
+  SetBoolProcessorMapSharedPtr set_bool_processors_;
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;

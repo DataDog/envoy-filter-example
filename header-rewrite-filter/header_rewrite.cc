@@ -26,6 +26,9 @@ HttpHeaderRewriteFilterConfig::HttpHeaderRewriteFilterConfig(
 
 HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr config)
     : config_(config) {
+
+  // make bool processor map
+  set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
   
   const std::string header_config = headerValue();
 
@@ -74,8 +77,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
           setError();
           return;
         }
-        const std::string boolName = processor->getBoolName();
-        set_bool_processors_.insert({boolName, std::move(processor)});
+        set_bool_processors_->insert({processor->getBoolName(), std::move(processor)});
         break;
       }
       default:
@@ -118,16 +120,17 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
     return Http::FilterHeadersStatus::Continue;
   }
 
-  // make a pointer to the bool map
-  std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>> set_bool_processor_shared_ptr = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>(set_bool_processors_);
+  // TODO: remove
+  // // make a pointer to the bool map
+  // std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>> set_bool_processor_shared_ptr = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>(set_bool_processors_);
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
-    ENVOY_LOG_MISC(info, "executing request operation");
-    processor->executeOperation(headers, set_bool_processor_shared_ptr);
+    // ENVOY_LOG_MISC(info, "executing request operation");
+    processor->executeOperation(headers, set_bool_processors_);
   }
 
-  ENVOY_LOG_MISC(info, "finished executing response operations");
+  // ENVOY_LOG_MISC(info, "finished executing response operations");
 
   return Http::FilterHeadersStatus::Continue;
 }
@@ -138,21 +141,22 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
     return Http::FilterHeadersStatus::Continue;
   }
 
-  // make a pointer to the bool map
-  std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>> set_bool_processor_shared_ptr = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>(set_bool_processors_);
-
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    ENVOY_LOG_MISC(info, "executing response operation");
-    processor->executeOperation(headers, set_bool_processor_shared_ptr);
+    // ENVOY_LOG_MISC(info, "executing response operation");
+    processor->executeOperation(headers, set_bool_processors_);
   }
 
-    ENVOY_LOG_MISC(info, "finished executing response operation");
+    // ENVOY_LOG_MISC(info, "finished executing response operation");
 
   // TODO: remove debug statement
-  const bool result = set_bool_processors_.at("mock_bool")->executeOperation();
-  if (result)
-    ENVOY_LOG_MISC(info, "match found!");
+  // bool result = set_bool_processors_->at("mock_bool")->executeOperation();
+  // if (result)
+  //   ENVOY_LOG_MISC(info, "in filter: mock_bool is true as expected!");
+  
+  // result = set_bool_processors_->at("another_mock_bool")->executeOperation();
+  // if (!result)
+  //   ENVOY_LOG_MISC(info, "in filter: another_mock_bool is false as expected!");
 
   return Http::FilterHeadersStatus::Continue;
 }

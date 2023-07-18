@@ -47,9 +47,10 @@ static_resources:
               key: header-processing
               val: |
                   http set-bool mock_bool matches -m str matches
-                  http-request set-path mockpath if not A
-                  http-request set-header x-forwarded-proto https if A and B and C
-                  http-response set-header mock_key mock_val1 mock_val2 if not A
+                  http set-bool another_mock_bool no-match -m str matches
+                  http-request set-path mockpath if mock_bool
+                  http-request set-header x-forwarded-proto https if another_mock_bool
+                  http-request set-header mock_key mock_val1 mock_val2 if mock_bool
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
