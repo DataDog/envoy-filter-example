@@ -51,8 +51,6 @@ bool isBinaryOperator(BooleanOperatorType operator_type) {
 }
 
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2) {
-    // TODO: add error checks for invalid access
-
     if (operator_val == BooleanOperatorType::And) return operand1 && operand2;
     return operand1 || operand2;
 }

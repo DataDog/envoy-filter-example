@@ -51,7 +51,6 @@ public:
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   absl::Status executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors);
 
-  // TODO: remove this?
   SetBoolProcessorMapSharedPtr getBoolProcessors() { return set_bool_processors_; }
   void setBoolProccessors(SetBoolProcessorMapSharedPtr bool_processors) { set_bool_processors_ = bool_processors; }
   bool getConditionResult() const { return condition_; }

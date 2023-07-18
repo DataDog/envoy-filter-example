@@ -128,7 +128,6 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
     }
   }
 
-
   return Http::FilterHeadersStatus::Continue;
 }
 
