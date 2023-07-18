@@ -166,11 +166,6 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-bool");
         }
 
-        ENVOY_LOG_MISC(info, "dumping bool contents");
-        for (const auto& str : operation_expression) {
-            ENVOY_LOG_MISC(info, std::string(str));
-        }
-
         // TODO: remove
         start++;
 
@@ -231,11 +226,6 @@ namespace HeaderRewriteFilter {
         // TODO: validate start pointer
         const Utility::BooleanOperatorType start_type = Utility::StringToBooleanOperatorType(*start);
 
-        ENVOY_LOG_MISC(info, "dumping condition processor parsing contents");
-        for (const auto& str : operation_expression) {
-            ENVOY_LOG_MISC(info, std::string(str));
-        }
-
         // conditional can't start with a binary operator
         if (Utility::isBinaryOperator(start_type)) {
             return absl::InvalidArgumentError("invalid condition -- condition must begin with '!' or an operand");
@@ -267,13 +257,9 @@ namespace HeaderRewriteFilter {
                 } else if (Utility::isOperator(Utility::StringToBooleanOperatorType(*(it+1)))) {
                     return absl::InvalidArgumentError("invalid condition -- can't have an operator after 'not'");
                 }
-                ENVOY_LOG_MISC(info, "adding negated operand:");
-                ENVOY_LOG_MISC(info, std::string(*(it+1)));
                 operands_.push_back(std::pair<absl::string_view, bool>(*(it+1), true));
                 it += 2;
             } else {
-                ENVOY_LOG_MISC(info, "adding operand:");
-                ENVOY_LOG_MISC(info, std::string(*it));
                 operands_.push_back(std::pair<absl::string_view, bool>(*it, false));
                 it++;
             }
@@ -285,16 +271,15 @@ namespace HeaderRewriteFilter {
 
     absl::Status ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
         try {
-            if (operands_.size() == 1) {
-                // look up the bool
-                ENVOY_LOG_MISC(info, std::string(operands_.at(0).first));
+            if (operands_.size() == 1) { // this function should never be called if there are no operands
+                // look up the bool in the map, evaluate the value of the bool, and store the result
                 condition_ = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
                 return absl::OkStatus();
             }
 
             bool result;
 
-            // evaluate first operation
+            // evaluate first operation: look up the bool in the map, evaluate the value of the bool, and possibly negate the value
             bool op1 = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
             bool op2 = operands_.at(1).second ? !(set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation();
 
@@ -303,17 +288,20 @@ namespace HeaderRewriteFilter {
             auto operators_it = operators_.begin() + 1;
             auto operands_it = operands_.begin() + 2;
 
+            // continue evaluating the condition from left to right
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
                 bool op2 = (*operands_it).second ? !(set_bool_processors->at(std::string((*operands_it).first))->executeOperation()) : set_bool_processors->at(std::string((*operands_it).first))->executeOperation();
                 result = Utility::evaluateExpression(result, *operators_it, op2);
                 operators_it++;
                 operands_it++;
             }
-
+            
+            // store the result
             condition_ = result;
+
             return absl::OkStatus();
 
-        } catch (std::exception& e) {
+        } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
             return absl::InvalidArgumentError("failed to process condition");
         }
     }

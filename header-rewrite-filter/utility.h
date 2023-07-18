@@ -50,7 +50,6 @@ BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator)
 
 bool isOperator(BooleanOperatorType operator_type);
 bool isBinaryOperator(BooleanOperatorType operator_type);
-// bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2);
 
 } // namespace Utility
