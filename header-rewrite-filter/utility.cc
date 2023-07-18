@@ -50,10 +50,6 @@ bool isBinaryOperator(BooleanOperatorType operator_type) {
     return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or);
 }
 
-// bool isOperand(BooleanOperatorType operator_type) {
-//     return operator_type == BooleanOperatorType::None;
-// }
-
 bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
     // TODO: remove mock values
     

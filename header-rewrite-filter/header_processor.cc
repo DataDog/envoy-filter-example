@@ -29,7 +29,6 @@ namespace HeaderRewriteFilter {
             std::vector<std::string> vals;
             for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
-                    ENVOY_LOG_MISC(info, "condition found"); // TODO: remove debug
 
                     if (it + 1 == operation_expression.end()) {
                     return absl::InvalidArgumentError("empty condition provided");
@@ -56,17 +55,13 @@ namespace HeaderRewriteFilter {
         // TODO: if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
         if (getConditionProcessor()) {
-            ENVOY_LOG_MISC(info, "start executing condition");
             result = getConditionProcessor()->executeOperation();
         }
-        ENVOY_LOG_MISC(info, "finish executing condition");
         setCondition(result);
     }
 
     void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
-        ENVOY_LOG_MISC(info, "start evaluating condition");
         evaluateCondition();
-        ENVOY_LOG_MISC(info, "finish evaluating condition");
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
@@ -79,18 +74,14 @@ namespace HeaderRewriteFilter {
         for (auto const& header_val : header_vals) {
             headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
-
-        ENVOY_LOG_MISC(info, "added header");
     }
 
     void SetPathProcessor::evaluateCondition() {
         // if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
         if (getConditionProcessor() != nullptr) {
-            ENVOY_LOG_MISC(info, "executing set path's condition operation");
             result = getConditionProcessor()->executeOperation();
         } else {
-            ENVOY_LOG_MISC(info, "no set path condition detected");
         }
         setCondition(result);
     }

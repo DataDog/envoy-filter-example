@@ -51,8 +51,6 @@ bool isBinaryOperator(BooleanOperatorType operator_type);
 bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2);
 
-// bool isOperand(BooleanOperatorType operator_type);
-
 } // namespace Utility
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters
