@@ -52,31 +52,36 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void HeaderProcessor::evaluateCondition() {
+    absl::Status HeaderProcessor::evaluateCondition() {
         // if condition is null, return true
         bool result = true;
         if (getConditionProcessor()) {
-            // ENVOY_LOG_MISC(info, "start executing condition");
-            result = getConditionProcessor()->executeOperation(getConditionProcessor()->getBoolProcessors());
+            const absl::Status status = getConditionProcessor()->executeOperation(getConditionProcessor()->getBoolProcessors());
+            if (status != absl::OkStatus()) {
+                return status;
+            }
+            result = getConditionProcessor()->getConditionResult();
         }
-        // ENVOY_LOG_MISC(info, "finish executing condition");
         setCondition(result);
+
+        return absl::OkStatus();
     }
 
-    void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        // ENVOY_LOG_MISC(info, "start evaluating condition");
+    absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
         const ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
         if (condition_processor) {
             condition_processor->setBoolProccessors(bool_processors);
         }
-        evaluateCondition();
-        // ENVOY_LOG_MISC(info, "finish evaluating condition");
+        const absl::Status status = evaluateCondition();
+        if (status != absl::OkStatus()) {
+            return status;
+        }
         const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
         if (!condition_result) {
-            return; // do nothing because condition is false
+            return absl::OkStatus(); // do nothing because condition is false
         }
         
         // set header
@@ -84,20 +89,9 @@ namespace HeaderRewriteFilter {
             headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
 
-        // ENVOY_LOG_MISC(info, "added header");
-    }
+        return absl::OkStatus();
 
-    // void SetPathProcessor::evaluateCondition() {
-    //     // TODO: if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
-    //     bool result = true;
-    //     if (getConditionProcessor() != nullptr) {
-    //         ENVOY_LOG_MISC(info, "executing set path's condition operation");
-    //         result = getConditionProcessor()->executeOperation();
-    //     } else {
-    //         ENVOY_LOG_MISC(info, "no set path condition detected");
-    //     }
-    //     setCondition(result);
-    // }
+    }
 
     absl::Status SetPathProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         if (operation_expression.size() < Utility::SET_PATH_MIN_NUM_ARGUMENTS) {
@@ -136,17 +130,21 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
+    absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
         const ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
         if (condition_processor) {
             condition_processor->setBoolProccessors(bool_processors);
         }
-        evaluateCondition();
+        const absl::Status status = evaluateCondition();
+        if (status != absl::OkStatus()) {
+            return status;
+        }
+
         const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string request_path = getPath();
 
         if (!condition_result) {
-            return; // do nothing because condition is false
+            return absl::OkStatus(); // do nothing because condition is false
         }
 
         // cast to RequestHeaderMap because setPath is only on request side
@@ -154,6 +152,8 @@ namespace HeaderRewriteFilter {
         
         // set path
         request_headers->setPath(request_path); // should never return an error
+
+        return absl::OkStatus();
     }
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
@@ -218,6 +218,8 @@ namespace HeaderRewriteFilter {
         switch (match_type) {
             case Utility::MatchType::Exact:
                 result = (getStringsToCompare().first == getStringsToCompare().second);
+                break;
+            case Utility::MatchType::Substr:
                 break;
             // TODO: implement rest of the match cases
             default:
@@ -288,80 +290,42 @@ namespace HeaderRewriteFilter {
         return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
     }
 
-    bool ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
+    absl::Status ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
+        try {
+            if (operands_.size() == 1) {
+                // look up the bool
+                ENVOY_LOG_MISC(info, std::string(operands_.at(0).first));
+                condition_ = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
+                return absl::OkStatus();
+            }
 
-        // ---------------------------
+            bool result;
 
-        // error cases: map is null, map does not have the specified key
-        if (!set_bool_processors) ENVOY_LOG_MISC(info, "bool processor map is null"); // TODO: change interface to return an error
+            // evaluate first operation
+            bool op1 = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
+            bool op2 = operands_.at(1).second ? !(set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation();
 
-        ENVOY_LOG_MISC(info, std::string(operands_.at(0).first));
+            result = Utility::evaluateExpression(op1, operators_.at(0), op2);
 
-        if (operands_.size() == 1) {
-            // look up the bool
-            ENVOY_LOG_MISC(info, std::string(operands_.at(0).first));
-            return set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
+            auto operators_it = operators_.begin() + 1;
+            auto operands_it = operands_.begin() + 2;
+
+            while (operators_it != operators_.end() && operands_it != operands_.end()) {
+                bool op2 = (*operands_it).second ? !(set_bool_processors->at(std::string((*operands_it).first))->executeOperation()) : set_bool_processors->at(std::string((*operands_it).first))->executeOperation();
+                result = Utility::evaluateExpression(result, *operators_it, op2);
+                operators_it++;
+                operands_it++;
+            }
+
+            condition_ = result;
+            return absl::OkStatus();
+
+        } catch (std::exception& e) {
+            return absl::InvalidArgumentError("failed to process condition");
         }
-
-        return true;
-
-        // bool result;
-
-        // // evaluate first operation -- get bool processor from map, execute operation, and call evaluateExpression on the result
-        // bool op1 = operands_.at(0).second ? !(*(set_bool_processors->find(std::string(operands_.at(0).first))).second->executeOperation()) : (*(set_bool_processors->find(std::string(operands_.at(0).first))).second->executeOperation());
-        // bool op2 = operands_.at(1).second ? !(*(set_bool_processors->find(std::string(operands_.at(1).first))).second->executeOperation())  : (*(set_bool_processors->find(std::string(operands_.at(1).first))).second->executeOperation()) ;
-        
-        // result = Utility::evaluateExpression(op1, operators_.at(0), op2);
-
-        // auto operators_it = operators_.begin() + 1;
-        // auto operands_it = operands_.begin() + 2;
-
-        // while (operators_it != operators_.end() && operands_it != operands_.end()) {
-        //     bool op2 = operands_.at(1).second ? !(set_bool_processors->find(std::string((*operands_it).first)).second->executeOperation()) : set_bool_processors->find(std::string((*operands_it).first)).second->executeOperation();
-        //     result = Utility::evaluateExpression(result, *operators_it, op2);
-        //     operators_it++;
-        //     operands_it++;
-        // }
-
-        // return result;
     }
 
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy
-
-
-    // ENVOY_LOG_MISC(info, "printing first operand");
-        // ENVOY_LOG_MISC(info, std::string(operands_.at(0).first));
-        // // // error cases: map is null, map does not have the specified key
-        // if (!set_bool_processors) ENVOY_LOG_MISC(info, "bool processor map is null"); // TODO: change interface to return an error
-        // return true;
-
-        // // bool r = set_bool_processors->at("mock_bool")->executeOperation();
-        // // if (r)
-        // //     ENVOY_LOG_MISC(info, "in processor: mock_bool is true as expected!");
-        
-        // // r = set_bool_processors->at("another_mock_bool")->executeOperation();
-        // // if (!r)
-        // //     ENVOY_LOG_MISC(info, "in processor: another_mock_bool is false as expected!");
-
-        // if (operands_.size() == 1) {
-        //     return operands_.at(0).second ? false : true; // TODO: remove mock value
-        // }
-
-
-        // bool result = true;
-
-        // // evaluate first operation
-        // result = Utility::evaluateExpression(operands_.at(0), operators_.at(0), operands_.at(1));
-
-        // auto operators_it = operators_.begin() + 1;
-        // auto operands_it = operands_.begin() + 2;
-
-        // while (operators_it != operators_.end() && operands_it != operands_.end()) {
-        //     result = Utility::evaluateExpression(result, *operators_it, *operands_it);
-        //     operators_it++;
-        //     operands_it++;
-        // }
-

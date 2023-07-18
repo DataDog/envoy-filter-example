@@ -49,17 +49,18 @@ public:
   ConditionProcessor() {}
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  bool executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors);
+  absl::Status executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors);
 
   // TODO: remove this?
   SetBoolProcessorMapSharedPtr getBoolProcessors() { return set_bool_processors_; }
   void setBoolProccessors(SetBoolProcessorMapSharedPtr bool_processors) { set_bool_processors_ = bool_processors; }
+  bool getConditionResult() const { return condition_; }
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
   std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
   SetBoolProcessorMapSharedPtr set_bool_processors_ = nullptr;
-  bool isTrue_; // not needed? can directly return the result without storing it
+  bool condition_;
 };
 
 using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
@@ -69,8 +70,8 @@ public:
   HeaderProcessor() {}
   virtual ~HeaderProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) = 0;
-  virtual void evaluateCondition(); // TODO: implement this in parent class
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) = 0;
+  virtual absl::Status evaluateCondition();
   bool getCondition() const { return condition_; }
   void setCondition(bool result) { condition_ = result; }
   void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
@@ -86,7 +87,7 @@ public:
   SetHeaderProcessor() {}
   virtual ~SetHeaderProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
 private:
   // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
   const std::string& getKey() const { return header_key_; }
@@ -104,7 +105,7 @@ public:
   SetPathProcessor() {}
   virtual ~SetPathProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
 
 private:
   const std::string& getPath() const { return request_path_; }
