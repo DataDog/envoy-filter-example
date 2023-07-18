@@ -151,8 +151,8 @@ namespace HeaderRewriteFilter {
     }
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
-        std::string first_string = std::string(strings_to_compare.first);
-        std::string second_string = std::string(strings_to_compare.second);
+        std::string first_string(strings_to_compare.first);
+        std::string second_string(strings_to_compare.second);
 
         strings_to_compare_ = std::make_pair(first_string, second_string); 
     }

@@ -19,11 +19,11 @@ namespace Utility {
 }
 
 MatchType StringToMatchType(absl::string_view match) {
-    if (match == "str") {
+    if (match == MATCH_TYPE_EXACT) {
         return MatchType::Exact;
-    } else if (match == "sub") {
+    } else if (match == MATCH_TYPE_SUBSTR) {
         return MatchType::Substr;
-    } else if (match == "found") {
+    } else if (match == MATCH_TYPE_FOUND) {
         return MatchType::Found;
     } else {
         return MatchType::InvalidMatchType;
