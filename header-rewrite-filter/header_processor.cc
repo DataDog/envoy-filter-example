@@ -49,8 +49,6 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("error parsing header values");
         }
 
-        // // parse condition expression and call evaluate conditions on the parsed expression
-        // const absl::Status status = evaluateCondition();
         return absl::OkStatus();
     }
 
@@ -86,7 +84,7 @@ namespace HeaderRewriteFilter {
     }
 
     void SetPathProcessor::evaluateCondition() {
-        // TODO: if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
+        // if processor is not null, call ConditionProcessor executeOperation; if it is null, return true
         bool result = true;
         if (getConditionProcessor() != nullptr) {
             ENVOY_LOG_MISC(info, "executing set path's condition operation");
@@ -259,21 +257,14 @@ namespace HeaderRewriteFilter {
             }
         }
 
-        // validate number of operands and operators
-
-        // TODO: remove debug statements
-
-        // std::string debug = "second operand negated is " + std::to_string(operands_.at(1).second) + " , operator is " + std::to_string(int(operators_.at(0)));
-        // return absl::InvalidArgumentError(debug);
+        // TODO: validate number of operands and operators
         return absl::OkStatus();
-        // return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
     }
 
     bool ConditionProcessor::executeOperation() {
         if (operands_.size() == 1) {
             return operands_.at(0).second ? false : true; // TODO: remove mock value
         }
-
 
         bool result = true;
 

@@ -27,7 +27,7 @@ public:
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
   std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
-  bool isTrue_; // not needed? can directly return the result without storing it
+  bool isTrue_; // Note: will be used when connecting ConditionProcessor to SetBoolProcessor
 };
 
 using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
@@ -99,7 +99,7 @@ private:
   Utility::MatchType getMatchType() const { return match_type_; }
   void setMatchType(Utility::MatchType match_type) { match_type_ = match_type; }
 
-  std::string bool_name_; // TODO: might only need to store this in the map
+  std::string bool_name_;
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
 };
