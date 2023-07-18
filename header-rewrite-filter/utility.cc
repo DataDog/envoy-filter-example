@@ -19,11 +19,11 @@ namespace Utility {
 }
 
 MatchType StringToMatchType(absl::string_view match) {
-    if (match == "str") {
+    if (match == MATCH_TYPE_EXACT) {
         return MatchType::Exact;
-    } else if (match == "sub") {
+    } else if (match == MATCH_TYPE_SUBSTR) {
         return MatchType::Substr;
-    } else if (match == "found") {
+    } else if (match == MATCH_TYPE_FOUND) {
         return MatchType::Found;
     } else {
         return MatchType::InvalidMatchType;
@@ -49,20 +49,6 @@ bool isOperator(BooleanOperatorType operator_type) {
 bool isBinaryOperator(BooleanOperatorType operator_type) {
     return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or);
 }
-
-// bool isOperand(BooleanOperatorType operator_type) {
-//     return operator_type == BooleanOperatorType::None;
-// }
-
-// bool evaluateExpression(std::pair<absl::string_view, bool> operand1, BooleanOperatorType operator_val, std::pair<absl::string_view, bool> operand2) {
-//     // TODO: add error checks for invalid access
-    
-//     bool op1 = operand1.second ? !(bool_processors->at(operand1.first)->executeOperation()) : bool_processors->at(operand1.first)->executeOperation();
-//     bool op2 = operand2.second ? !(bool_processors->at(operand2.first)->executeOperation()) : bool_processors->at(operand2.first)->executeOperation();
-
-//     if (operator_val == BooleanOperatorType::And) return op1 && op2;
-//     return op1 || op2;
-// }
 
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2) {
     // TODO: add error checks for invalid access

@@ -29,7 +29,6 @@ namespace HeaderRewriteFilter {
             std::vector<std::string> vals;
             for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
-                    // ENVOY_LOG_MISC(info, "condition found"); // TODO: remove debug
 
                     if (it + 1 == operation_expression.end()) {
                     return absl::InvalidArgumentError("empty condition provided");
@@ -90,7 +89,6 @@ namespace HeaderRewriteFilter {
         }
 
         return absl::OkStatus();
-
     }
 
     absl::Status SetPathProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -157,8 +155,8 @@ namespace HeaderRewriteFilter {
     }
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
-        std::string first_string = std::string(strings_to_compare.first);
-        std::string second_string = std::string(strings_to_compare.second);
+        std::string first_string(strings_to_compare.first);
+        std::string second_string(strings_to_compare.second);
 
         strings_to_compare_ = std::make_pair(first_string, second_string); 
     }
@@ -280,11 +278,6 @@ namespace HeaderRewriteFilter {
                 it++;
             }
         }
-
-        // TODO: remove debug statements
-        // std::string debug = "second operand negated is " + std::to_string(operands_.at(1).second) + " , operator is " + std::to_string(int(operators_.at(0)));
-        // return absl::InvalidArgumentError(debug);
-        // return absl::OkStatus();
 
         // validate number of operands and operators
         return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
