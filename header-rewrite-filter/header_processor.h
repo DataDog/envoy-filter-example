@@ -34,13 +34,13 @@ public:
 private:
   // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
   const std::string& getKey() const { return header_key_; }
-  const std::vector<std::string>& getVals() const { return header_vals_; }
+  const std::string& getVal() const { return header_val_; }
 
   void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
+  void setVal(std::string val) { header_val_ = val; }
 
   std::string header_key_; // header key to set
-  std::vector<std::string> header_vals_; // header values to set
+  std::string header_val_; // header values to set
 };
 
 // Note: path being set here includes the query string

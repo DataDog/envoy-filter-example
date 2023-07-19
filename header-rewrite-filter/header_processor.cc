@@ -22,11 +22,7 @@ namespace HeaderRewriteFilter {
 
         // parse values and call setVals
         try {
-            std::vector<std::string> vals;
-            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
-                vals.push_back(std::string{*it}); // could throw bad_alloc
-            }
-            setVals(vals);
+            setVal(std::string(*(operation_expression.begin() + 3)));
         } catch (const std::exception& e) {
             return absl::InvalidArgumentError("error parsing header values");
         }
@@ -44,16 +40,14 @@ namespace HeaderRewriteFilter {
     void SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) const {
         bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
-        const std::vector<std::string>& header_vals = getVals();
+        const std::string header_val = getVal();
 
         if (!condition_result) {
             return; // do nothing because condition is false
         }
         
         // set header
-        for (auto const& header_val : header_vals) {
-            headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
-        }
+        headers.setCopy(Http::LowerCaseString(key), header_val); // should never return an error
     }
 
      absl::Status SetPathProcessor::evaluateCondition() {
