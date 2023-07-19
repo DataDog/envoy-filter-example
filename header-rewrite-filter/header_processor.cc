@@ -126,7 +126,7 @@ namespace HeaderRewriteFilter {
     void SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
         evaluateCondition();
         const bool condition_result = getCondition(); // whether the condition is true or false
-        const std::string request_path = getPath();
+        const std::string new_path = getPath();
 
         if (!condition_result) {
             return; // do nothing because condition is false
@@ -134,9 +134,21 @@ namespace HeaderRewriteFilter {
 
         // cast to RequestHeaderMap because setPath is only on request side
         Http::RequestHeaderMap* request_headers = static_cast<Http::RequestHeaderMap*>(&headers);
+
+        // get path (includes query string)
+        absl::string_view path = request_headers->path();
+
+        size_t offset = path.find_first_of("?"); // TODO: envoy implements this as ?#
+
+        if (offset == absl::string_view::npos) { // no query string present
+            request_headers->setPath(new_path); // should never return an error
+            return;
+        }
+
+        absl::string_view query_string = path.substr(offset, path.length() - offset);
         
-        // set path
-        request_headers->setPath(request_path); // should never return an error
+        // set path, preserves query string
+        request_headers->setPath(new_path + std::string(query_string)); // should never return an error
     }
 
     void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
