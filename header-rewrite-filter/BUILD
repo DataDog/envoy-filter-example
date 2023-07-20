@@ -75,3 +75,13 @@ envoy_cc_test(
         "@envoy//test/integration:http_integration_lib",
     ],
 )
+
+envoy_cc_test(
+    name = "header_processor_test",
+    srcs = ["header_processor_test.cc"],
+    repository = "@envoy",
+    deps = [
+        ":header_rewrite_processor_lib",
+         "@envoy//test/integration:http_integration_lib",
+    ]
+)

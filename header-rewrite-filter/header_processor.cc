@@ -134,8 +134,7 @@ namespace HeaderRewriteFilter {
             }
 
         } catch (const std::exception& e) {
-            // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing request path argument");
+            return absl::InvalidArgumentError("error parsing boolean expression");
         }
 
         return absl::OkStatus();
