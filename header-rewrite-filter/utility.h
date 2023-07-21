@@ -18,6 +18,7 @@ constexpr absl::string_view HTTP_RESPONSE = "http-response";
 constexpr absl::string_view HTTP_REQUEST_RESPONSE = "http";
 
 constexpr absl::string_view MATCH_TYPE_EXACT = "str";
+constexpr absl::string_view MATCH_TYPE_PREFIX = "beg";
 constexpr absl::string_view MATCH_TYPE_SUBSTR = "sub";
 constexpr absl::string_view MATCH_TYPE_FOUND = "found";
 
@@ -30,6 +31,7 @@ enum class OperationType : int {
 
 enum class MatchType : int {
   Exact,
+  Prefix,
   Substr,
   Found,
   InvalidMatchType,

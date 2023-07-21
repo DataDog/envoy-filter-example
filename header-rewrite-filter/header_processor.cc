@@ -155,24 +155,25 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
-        std::string first_string(strings_to_compare.first);
-        std::string second_string(strings_to_compare.second);
+    // void SetBoolProcessor::setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare) {
+    //     std::string first_string(strings_to_compare.first);
+    //     std::string second_string(strings_to_compare.second);
 
-        strings_to_compare_ = std::make_pair(first_string, second_string); 
-    }
+    //     strings_to_compare_ = std::make_pair(first_string, second_string); 
+    // }
 
     absl::Status SetBoolProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         if (operation_expression.size() < Utility::SET_BOOL_MIN_NUM_ARGUMENTS) {
             return absl::InvalidArgumentError("not enough arguments for set-bool");
         }
 
+        ENVOY_LOG_MISC(info, "parsing bool operation");
+
         // TODO: remove
         start++;
 
         try {
             absl::string_view bool_name = operation_expression.at(2); // TODO: use start
-            setBoolName(bool_name);
 
             if (operation_expression.at(4) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
@@ -183,15 +184,18 @@ namespace HeaderRewriteFilter {
             switch (match_type) {
                 case Utility::MatchType::Exact:
                     {
-                        std::pair<absl::string_view, absl::string_view> strings_to_compare(operation_expression.at(3), operation_expression.at(6));
-                        setStringsToCompare(strings_to_compare);
+                        source_ = operation_expression.at(3);
+                        matcher_ = [&operation_expression](absl::string_view source) { return source == operation_expression.at(6); };
                         break;
                     }
-                // TODO: implement this
-                // case Utility::MatchType::Substr:
-                //     break;
-                // case Utility::MatchType::Found:
-                //     break;
+                case Utility::MatchType::Prefix:
+                    source_ = operation_expression.at(3);
+                    matcher_ = [&operation_expression](absl::string_view source) { return source.find(operation_expression.at(6)) == 0; };
+                    break;
+                case Utility::MatchType::Substr:
+                    break;
+                case Utility::MatchType::Found:
+                    break;
                 default:
                     return absl::InvalidArgumentError("invalid match type");
             }
@@ -205,22 +209,11 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status SetBoolProcessor::executeOperation() {
-        const Utility::MatchType match_type = getMatchType();
+        // const Utility::MatchType match_type = getMatchType();
 
-        bool result;
-
-        switch (match_type) {
-            case Utility::MatchType::Exact:
-                result = (getStringsToCompare().first == getStringsToCompare().second);
-                break;
-            case Utility::MatchType::Substr:
-                break;
-            // TODO: implement rest of the match cases
-            default:
-                result = false;
-        }
-
-        result_ = result;
+        result_ = matcher_(source_);
+        ENVOY_LOG_MISC(info, source_);
+        ENVOY_LOG_MISC(info, result_);
 
         return absl::OkStatus();
     }

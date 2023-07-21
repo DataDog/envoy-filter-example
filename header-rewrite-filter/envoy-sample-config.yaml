@@ -47,8 +47,11 @@ static_resources:
               key: header-processing
               val: |
                   http set-bool mock_bool matches -m str matches
+                  http set-bool substring substring -m beg sub
                   http set-bool another_mock_bool no-match -m str matches
-                  http-request set-path mockpath if not another_mock_bool
+                  http-request set-header mock_header mock_value if mock_bool
+                  http-request set-path mockpath if substring
+                  http-response set-header mock_header mock_value if not another_mock_bool
                   http-request set-header x-forwarded-proto https if mock_bool and mock_bool or not mock_bool
                   http-response set-header mock_key mock_val1 mock_val2 if another_mock_bool or not another_mock_bool and mock_bool
           - name: envoy.filters.http.router
