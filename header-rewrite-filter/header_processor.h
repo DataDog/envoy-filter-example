@@ -16,7 +16,7 @@ class Processor {
 public:
   Processor() {}
   virtual ~Processor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
 };
 
 class SetBoolProcessor : public Processor {
@@ -24,8 +24,9 @@ public:
   SetBoolProcessor() {}
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual bool executeOperation() const;
+  virtual absl::Status executeOperation();
   const std::string& getBoolName() const { return bool_name_; }
+  const bool getResult() const { return result_; }
 
 private:
   void setBoolName(absl::string_view bool_name) { bool_name_ = std::string(bool_name); }
@@ -39,7 +40,9 @@ private:
   std::string bool_name_;
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
+  bool result_;
 };
+
 
 using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
 using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
@@ -49,7 +52,7 @@ public:
   ConditionProcessor() {}
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  absl::Status executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors);
+  virtual absl::Status executeOperation(SetBoolProcessorMapSharedPtr bool_processors);
 
   SetBoolProcessorMapSharedPtr getBoolProcessors() { return set_bool_processors_; }
   void setBoolProccessors(SetBoolProcessorMapSharedPtr bool_processors) { set_bool_processors_ = bool_processors; }
@@ -68,8 +71,7 @@ class HeaderProcessor : public Processor {
 public:
   HeaderProcessor() {}
   virtual ~HeaderProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) = 0;
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) = 0;
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) { return absl::OkStatus(); }
   virtual absl::Status evaluateCondition();
   bool getCondition() const { return condition_; }
   void setCondition(bool result) { condition_ = result; }
@@ -77,8 +79,11 @@ public:
   ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
 
 protected:
-  bool condition_;
   ConditionProcessorSharedPtr condition_processor_ = nullptr;
+  absl::Status ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start);
+
+private:
+  bool condition_;
 };
 
 class SetHeaderProcessor : public HeaderProcessor {

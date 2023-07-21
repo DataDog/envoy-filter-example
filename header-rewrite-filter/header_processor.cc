@@ -7,6 +7,15 @@ namespace Extensions {
 namespace HttpFilters {
 namespace HeaderRewriteFilter {
 
+    absl::Status HeaderProcessor::ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start) {
+        if (start == condition_expression.end()) {
+            return absl::InvalidArgumentError("empty condition provided");
+        }
+
+        setConditionProcessor(std::make_shared<ConditionProcessor>());
+        return getConditionProcessor()->parseOperation(condition_expression, start); // pass everything after the "if"
+    }
+
     absl::Status SetHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         if (operation_expression.size() < Utility::SET_HEADER_MIN_NUM_ARGUMENTS) {
             return absl::InvalidArgumentError("not enough arguments for set-header");
@@ -30,12 +39,8 @@ namespace HeaderRewriteFilter {
             for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
 
-                    if (it + 1 == operation_expression.end()) {
-                    return absl::InvalidArgumentError("empty condition provided");
-                    }
+                    const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
 
-                    setConditionProcessor(std::make_shared<ConditionProcessor>());
-                    const absl::Status status = getConditionProcessor()->parseOperation(operation_expression, it+1); // pass everything after the "if"
                     if (status != absl::OkStatus()) {
                         return status;
                     }
@@ -85,7 +90,7 @@ namespace HeaderRewriteFilter {
         
         // set header
         for (auto const& header_val : header_vals) {
-            headers.addCopy(Http::LowerCaseString(key), header_val); // should never return an error
+            headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
 
         return absl::OkStatus();
@@ -110,12 +115,8 @@ namespace HeaderRewriteFilter {
                     return absl::InvalidArgumentError("second argument to set-path must be a condition");
                 }
 
-                if (it + 1 == operation_expression.end()) {
-                    return absl::InvalidArgumentError("empty condition provided");
-                }
+                const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
 
-                setConditionProcessor(std::make_shared<ConditionProcessor>());
-                const absl::Status status = getConditionProcessor()->parseOperation(operation_expression, it+1); // pass everything after the "if"
                 if (status != absl::OkStatus()) {
                     return status;
                 }
@@ -203,7 +204,7 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    bool SetBoolProcessor::executeOperation() const {
+    absl::Status SetBoolProcessor::executeOperation() {
         const Utility::MatchType match_type = getMatchType();
 
         bool result;
@@ -219,7 +220,9 @@ namespace HeaderRewriteFilter {
                 result = false;
         }
 
-        return result;
+        result_ = result;
+
+        return absl::OkStatus();
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -271,27 +274,37 @@ namespace HeaderRewriteFilter {
 
     absl::Status ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
         try {
-            if (operands_.size() == 1) { // this function should never be called if there are no operands
+            absl::Status status;
+            bool bool_var;
+            SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(operands_.at(0).first));
+            if (operands_.size() >= 1) { // this function should never be called if there are no operands
                 // look up the bool in the map, evaluate the value of the bool, and store the result
-                condition_ = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
-                return absl::OkStatus();
+                status = bool_processor->executeOperation();
+                if (status != absl::OkStatus()) {
+                    return status;
+                }
+                bool_var = bool_processor->getResult();
+                if (operands_.size() == 1) {
+                    condition_ = operands_.at(0).second ? !bool_var : bool_var;
+                    return absl::OkStatus();
+                }
             }
 
-            bool result;
+            bool result = bool_var;
 
-            // evaluate first operation: look up the bool in the map, evaluate the value of the bool, and possibly negate the value
-            bool op1 = operands_.at(0).second ? !(set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(0).first))->executeOperation();
-            bool op2 = operands_.at(1).second ? !(set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation()) : set_bool_processors->at(std::string(operands_.at(1).first))->executeOperation();
-
-            result = Utility::evaluateExpression(op1, operators_.at(0), op2);
-
-            auto operators_it = operators_.begin() + 1;
-            auto operands_it = operands_.begin() + 2;
+            auto operators_it = operators_.begin();
+            auto operands_it = operands_.begin() + 1;
 
             // continue evaluating the condition from left to right
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
-                bool op2 = (*operands_it).second ? !(set_bool_processors->at(std::string((*operands_it).first))->executeOperation()) : set_bool_processors->at(std::string((*operands_it).first))->executeOperation();
-                result = Utility::evaluateExpression(result, *operators_it, op2);
+                bool_processor = set_bool_processors->at(std::string((*operands_it).first));
+                status = bool_processor->executeOperation();
+                if (status != absl::OkStatus()) {
+                    return status;
+                }
+                bool_var = bool_processor->getResult();
+                bool operand = (*operands_it).second ? !bool_var : bool_var;
+                result = Utility::evaluateExpression(result, *operators_it, operand);
                 operators_it++;
                 operands_it++;
             }

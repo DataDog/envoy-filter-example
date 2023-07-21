@@ -71,13 +71,21 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
       case Utility::OperationType::SetBool:
       {
         SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>();
+        const std::string boolName(tokens.at(2));
         const absl::Status status = processor->parseOperation(tokens, tokens.begin());
+
         if (!status.ok()) {
           fail(status.message());
           setError();
           return;
         }
-        set_bool_processors_->insert({processor->getBoolName(), std::move(processor)});
+        // make sure this boolean variable doesn't already exist in the map
+        if (set_bool_processors_->find(boolName) != set_bool_processors_->end()) {
+          fail("redefinition of boolean variable");
+          setError();
+          return;
+        }
+        set_bool_processors_->insert({boolName, std::move(processor)});
         break;
       }
       default:
