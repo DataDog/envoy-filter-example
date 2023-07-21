@@ -140,7 +140,7 @@ namespace HeaderRewriteFilter {
         }
 
         const bool condition_result = getCondition(); // whether the condition is true or false
-        const std::string request_path = getPath();
+        const std::string new_path = getPath();
 
         if (!condition_result) {
             return absl::OkStatus(); // do nothing because condition is false
@@ -149,8 +149,20 @@ namespace HeaderRewriteFilter {
         // cast to RequestHeaderMap because setPath is only on request side
         Http::RequestHeaderMap* request_headers = static_cast<Http::RequestHeaderMap*>(&headers);
         
-        // set path
-        request_headers->setPath(request_path); // should never return an error
+        // get path (includes query string)
+        absl::string_view path = request_headers->path();
+
+        const size_t offset = path.find_first_of("?"); // TODO: envoy implements this as ?#
+
+        if (offset == absl::string_view::npos) { // no query string present
+            request_headers->setPath(new_path); // should never return an error
+            return absl::OkStatus();
+        }
+
+        const absl::string_view query_string = path.substr(offset, path.length() - offset);
+        
+        // set path, preserves query string
+        request_headers->setPath(new_path + std::string(query_string)); // should never return an error
 
         return absl::OkStatus();
     }
