@@ -87,6 +87,9 @@ private:
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
   bool result_;
+
+  Utility::FunctionType function_type_;
+  absl::string_view function_argument_;
 };
 
 } // namespace HeaderRewriteFilter

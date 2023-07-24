@@ -117,6 +117,16 @@ namespace HeaderRewriteFilter {
 
             const Utility::MatchType match_type = Utility::StringToMatchType(operation_expression.at(5));
 
+            function_type_ = Utility::StringToFunctionType(operation_expression.at(3));
+            function_argument_ = operation_expression.at(3);
+            absl::Status status = Utility::GetFunctionArgument(function_type_, function_argument_);
+            if (status != absl::OkStatus()) {
+                return status;
+            }
+            // ENVOY_LOG_MISC(info, function_argument_);
+            // ENVOY_LOG_MISC(info, operation_expression.at(3));
+            // ENVOY_LOG_MISC(info, status.message());
+
             switch (match_type) {
                 case Utility::MatchType::Exact:
                     {
