@@ -77,7 +77,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
 
     // parse operation
     if (processor) {
-      const absl::Status status = processor->parseOperation(tokens);
+      const absl::Status status = processor->parseOperation(tokens, tokens.begin());
       if (!status.ok()) {
         fail(status.message());
         setError();

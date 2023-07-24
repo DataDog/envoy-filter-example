@@ -15,18 +15,38 @@ namespace HeaderRewriteFilter {
 class Processor {
 public:
   virtual ~Processor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression) { return absl::OkStatus(); }
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
   virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers) { }
 };
+
+class ConditionProcessor : public Processor {
+public:
+  virtual ~ConditionProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
+  bool executeOperation();
+
+private:
+  std::vector<Utility::BooleanOperatorType> operators_;
+  std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
+  bool isTrue_; // Note: will be used when connecting ConditionProcessor to SetBoolProcessor
+};
+
+using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
 
 class HeaderProcessor : public Processor {
 public:
   virtual ~HeaderProcessor() {}
-  virtual absl::Status evaluateCondition() { return absl::OkStatus(); }
+  virtual absl::Status evaluateCondition();
   bool getCondition() const { return condition_; }
   void setCondition(bool result) { condition_ = result; }
+  void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
+  ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
 
 protected:
+  ConditionProcessorSharedPtr condition_processor_ = nullptr;
+  absl::Status ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start);
+
+private:
   bool condition_;
 };
 
@@ -34,9 +54,8 @@ class SetHeaderProcessor : public HeaderProcessor {
 public:
   SetHeaderProcessor() {}
   virtual ~SetHeaderProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression);
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers);
-  virtual absl::Status evaluateCondition(); // TODO: will need to pass http-related metadata in order to evaluate dynamic values
 
 private:
   // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
@@ -55,9 +74,8 @@ class SetPathProcessor : public HeaderProcessor {
 public:
   SetPathProcessor() {}
   virtual ~SetPathProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression);
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers);
-  virtual absl::Status evaluateCondition(); // TODO: possibly combine with SetHeader implementation and move code into HeaderProcessor
 
 private:
   const std::string& getPath() const { return request_path_; }
@@ -69,7 +87,7 @@ private:
 class SetBoolProcessor : public Processor {
 public:
   virtual ~SetBoolProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression);
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual void executeOperation(Http::RequestOrResponseHeaderMap& headers);
   const std::string& getBoolName() const { return bool_name_; }
   const bool getResult() const { return result_; }
@@ -83,7 +101,7 @@ private:
   Utility::MatchType getMatchType() const { return match_type_; }
   void setMatchType(Utility::MatchType match_type) { match_type_ = match_type; }
 
-  std::string bool_name_; // TODO: might only need to store this in the map
+  std::string bool_name_;
   std::pair<std::string, std::string> strings_to_compare_;
   Utility::MatchType match_type_;
   bool result_;
