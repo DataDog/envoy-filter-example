@@ -12,12 +12,9 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-header");
         }
 
-        // TODO: remove
-        start++;
-
         // parse key and call setKey
         try {
-            const absl::string_view key = operation_expression.at(2); // TODO: use start
+            const absl::string_view key = *start;
             setKey(key);
         } catch (const std::exception& e) {
             // should never happen, range is checked above
@@ -27,7 +24,7 @@ namespace HeaderRewriteFilter {
         // parse values and call setVals
         try {
             std::vector<std::string> vals;
-            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
+            for(auto it = start + 1; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
 
                     const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
@@ -88,16 +85,13 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-path");
         }
 
-        // TODO: remove
-        start++;
-
         // parse path and call setPath
         try {
-            absl::string_view request_path = operation_expression.at(2); // TODO: use start
+            absl::string_view request_path = *start;
             setPath(request_path);
 
             if (operation_expression.size() > 3) {
-                auto it = operation_expression.begin() + 3;
+                auto it = start + 1;
                 if (*it != "if") {
                     return absl::InvalidArgumentError("second argument to set-path must be a condition");
                 }
@@ -144,23 +138,20 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-bool");
         }
 
-        // TODO: remove
-        start++;
-
         try {
-            absl::string_view bool_name = operation_expression.at(2); // TODO: use start
+            absl::string_view bool_name = *start;
             setBoolName(bool_name);
 
-            if (operation_expression.at(4) != "-m") {
+            if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
 
-            const Utility::MatchType match_type = Utility::StringToMatchType(operation_expression.at(5));
+            const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
             switch (match_type) {
                 case Utility::MatchType::Exact:
                     {
-                        std::pair<absl::string_view, absl::string_view> strings_to_compare(operation_expression.at(3), operation_expression.at(6));
+                        std::pair<absl::string_view, absl::string_view> strings_to_compare(*(start + 1), *(start + 4));
                         setStringsToCompare(strings_to_compare);
                         break;
                     }
@@ -199,8 +190,12 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
-        // TODO: validate start pointer
-        const Utility::BooleanOperatorType start_type = Utility::StringToBooleanOperatorType(*start);
+        Utility::BooleanOperatorType start_type;
+        try {
+            start_type = Utility::StringToBooleanOperatorType(*start);
+        } catch (std::exception& e) {
+            return absl::InvalidArgumentError("failed to parse condition");
+        }
 
         // conditional can't start with a binary operator
         if (Utility::isBinaryOperator(start_type)) {
