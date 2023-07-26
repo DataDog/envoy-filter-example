@@ -71,14 +71,14 @@ public:
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
 private:
   // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
-  const std::string& getKey() const { return header_key_; }
-  const std::vector<std::string>& getVals() const { return header_vals_; }
+  const absl::string_view getKey() const { return header_key_; }
+  const std::string getVal() const { return header_val_; }
 
   void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
+  void setVal(absl::string_view val) { header_val_ = std::string(val); }
 
   std::string header_key_; // header key to set
-  std::vector<std::string> header_vals_; // header values to set
+  std::string header_val_; // header value to set
 };
 
 class AppendHeaderProcessor : public HeaderProcessor {
