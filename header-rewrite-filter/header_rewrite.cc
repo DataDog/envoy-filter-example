@@ -60,6 +60,9 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
       case Utility::OperationType::SetHeader:
         processor = std::make_unique<SetHeaderProcessor>();
         break;
+      case Utility::OperationType::AppendHeader:
+        processor = std::make_unique<AppendHeaderProcessor>();
+        break;
       case Utility::OperationType::SetPath:
         if (!isRequest) {
           fail("set-path can only be on request");
