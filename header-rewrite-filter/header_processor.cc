@@ -1,6 +1,6 @@
 #include "header_processor.h"
 
-#include "source/common/common/logger.h"
+#include "source/common/common/logger.h" // TODO: remove debugging lib
 
 namespace Envoy {
 namespace Extensions {
@@ -91,12 +91,11 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    // return status and condition result
-    std::tuple<absl::Status, bool> HeaderProcessor::evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors) {
+    std::tuple<absl::Status, bool> HeaderProcessor::evaluateCondition(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
         // call ConditionProcessor executeOperation; if it is null, return true
         ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
         if (condition_processor) {
-            const std::tuple<absl::Status, bool> condition = condition_processor->executeOperation(bool_processors);
+            const std::tuple<absl::Status, bool> condition = condition_processor->executeOperation(headers, bool_processors);
             const absl::Status status = std::get<0>(condition);
             if (status != absl::OkStatus()) {
                 return std::make_tuple(status, false);
@@ -108,7 +107,7 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-       const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+       const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, bool_processors);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -128,7 +127,7 @@ namespace HeaderRewriteFilter {
 
 
     absl::Status AppendHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, bool_processors);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -179,7 +178,7 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, bool_processors);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -221,7 +220,7 @@ namespace HeaderRewriteFilter {
             if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
-
+            
             const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
             // validate number of arguments
@@ -236,44 +235,88 @@ namespace HeaderRewriteFilter {
                 return absl::InvalidArgumentError("too many arguments for set bool");
             }
 
-            const std::string string_to_compare = std::string(*(start + 4));
+            // parse dynamic function
+            const auto dynamic_function_expression = *(start + 1);
+            function_type_ = Utility::GetFunctionType(dynamic_function_expression);
+            if (function_type_ == Utility::FunctionType::InvalidFunctionType) {
+                return absl::InvalidArgumentError("invalid function type for dynamic value");
+            }
+            const std::tuple<absl::Status, std::string> get_function_argument_result = Utility::GetFunctionArgument(dynamic_function_expression);
+            const absl::Status status = std::get<0>(get_function_argument_result);
+            if (status != absl::OkStatus()) {
+                return status;
+            }
+            function_argument_ = std::get<1>(get_function_argument_result);
 
             switch (match_type) {
                 case Utility::MatchType::Exact:
-                    source_ = std::string(*(start + 1));
-                    matcher_ = [string_to_compare](std::string source) { return source.compare(string_to_compare) == 0; };
+                {
+                    std::string string_to_compare = std::string(*(start + 4));
+                    matcher_ = [string_to_compare](std::string source) { return (source.compare(string_to_compare) == 0); };
                     break;
+                }
                 case Utility::MatchType::Prefix:
-                    source_ = std::string(*(start + 1));
+                {
+                    std::string string_to_compare = std::string(*(start + 4));
                     matcher_ = [string_to_compare](std::string source) { return string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
                     break;
+                }
                 case Utility::MatchType::Substr:
-                    source_ = std::string(*(start + 1));
+                {
+                    std::string string_to_compare = std::string(*(start + 4));
                     matcher_ = [string_to_compare](std::string source) { return source.find(string_to_compare) != std::string::npos; };
                     break;
-                // TODO: implement this
-                case Utility::MatchType::Found:
+                }
+                case Utility::MatchType::Found: // urlp found or hdr found
+                {
+                    matcher_ = [](std::string source) { return source.length() > 0; };
                     break;
+                }
                 default:
                     return absl::InvalidArgumentError("invalid match type");
             }
 
-        } catch (const std::exception& e) {
+        } catch (const std::exception& e) { // could throw bad optional access if config syntax is wrong
             return absl::InvalidArgumentError("error parsing boolean expression -- " + std::string(e.what()));
         }
+
 
         return absl::OkStatus();
     }
 
-    // return status and bool result
-    std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(bool negate) {
-        try {
-            const bool result = matcher_(source_);
-            const bool apply_negation = negate ? !result : result;
-            return std::make_tuple(absl::OkStatus(), apply_negation);
-        } catch (std::exception& e) {
-            return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), false);
+    std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, bool negate) {
+        const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
+        std::tuple<absl::Status, std::string> result;
+        std::string source;
+        switch (function_type_) {
+            case Utility::FunctionType::GetHdr:
+            {
+                result = Utility::getHeaderValue(headers, arguments);
+                const absl::Status status = std::get<0>(result);
+                source = std::get<1>(result);
+                if (status != absl::OkStatus() || source.length() == 0) {
+                    return std::make_tuple(status, false);
+                }
+                break;
+            }
+            case Utility::FunctionType::Urlp:
+            {
+                result = Utility::getUrlp(headers, arguments);
+                const absl::Status status = std::get<0>(result);
+                source = std::get<1>(result);
+                if (status != absl::OkStatus() || source.length() == 0) {
+                    return std::make_tuple(status, false);
+                }
+                break;
+            }
+            default:
+                break;
         }
+
+        const bool bool_result = matcher_(source);
+        const bool apply_negation = negate ? !bool_result : bool_result;
+
+        return std::make_tuple(absl::OkStatus(), apply_negation);
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -331,18 +374,18 @@ namespace HeaderRewriteFilter {
     }
 
     // return status and condition result
-    std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
+    std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr set_bool_processors) {
         try {
             SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(std::get<0>(operands_.at(0))));
             // look up the bool in the map, evaluate the value of the bool, and store the result
-            const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+            const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(headers, std::get<1>(operands_.at(0)));
             const absl::Status status = std::get<0>(bool_var_result);
             if (status != absl::OkStatus()) {
-                return std::make_pair(status, false);
+                return std::make_tuple(status, false);
             }
             const bool bool_var = std::get<1>(bool_var_result);
             if (operands_.size() == 1) {
-                return std::make_pair(absl::OkStatus(), bool_var);
+                return std::make_tuple(absl::OkStatus(), bool_var);
             }
 
             bool result = bool_var;
@@ -354,7 +397,7 @@ namespace HeaderRewriteFilter {
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
                 bool_processor = set_bool_processors->at(std::string(std::get<0>((*operands_it))));
 
-                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(*operands_it));
+                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(headers, std::get<1>(*operands_it));
                 const absl::Status status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
                     return std::make_tuple(status, false);

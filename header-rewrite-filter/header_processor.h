@@ -2,6 +2,8 @@
 
 #include "utility.h"
 
+#include "source/common/common/utility.h"
+#include "source/common/http/utility.h"
 #include "source/extensions/filters/http/common/pass_through_filter.h"
 
 #include <string>
@@ -24,11 +26,13 @@ public:
   SetBoolProcessor() {}
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual std::tuple<absl::Status, bool> executeOperation(bool negate);  // return status and bool result
+  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, bool negate);  // return status and bool result
 
 private:
-  std::string source_;
   std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
+  Utility::FunctionType function_type_;
+  std::string function_argument_;
+
 };
 
 
@@ -40,7 +44,7 @@ public:
   ConditionProcessor() {}
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual std::tuple<absl::Status, bool> executeOperation(SetBoolProcessorMapSharedPtr bool_processors);  // return status and condition result
+  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors); // return status and condition result
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
@@ -54,7 +58,7 @@ public:
   HeaderProcessor() {}
   virtual ~HeaderProcessor() {}
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) { return absl::OkStatus(); }
-  virtual std::tuple<absl::Status, bool> evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors);  // return status and condition result
+  virtual std::tuple<absl::Status, bool> evaluateCondition(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors); // return status and condition result
   void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
   ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
 

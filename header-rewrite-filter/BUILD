@@ -52,6 +52,8 @@ envoy_cc_library(
     deps = [
         ":pkg_cc_proto",
         ":header_rewrite_utils_lib",
+        "@envoy//source/common/common:utility_lib",
+        "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/common:minimal_logger_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
     ],
@@ -63,6 +65,9 @@ envoy_cc_library(
     hdrs = ["utility.h",],
     repository = "@envoy",
     deps = [
+        "@envoy//source/common/http:status_lib",
+        "@envoy//source/common/http:utility_lib",
+        "@envoy//source/common/http:header_utility_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
     ],
 )

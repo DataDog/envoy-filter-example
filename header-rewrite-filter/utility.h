@@ -1,6 +1,10 @@
 #pragma once
 
 #include "absl/strings/string_view.h"
+#include "absl/status/status.h"
+#include "source/extensions/filters/http/common/pass_through_filter.h"
+#include "source/common/http/header_utility.h"
+#include "source/common/http/utility.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -34,6 +38,9 @@ constexpr absl::string_view BOOLEAN_AND = "and";
 constexpr absl::string_view BOOLEAN_OR = "or";
 constexpr absl::string_view BOOLEAN_NOT = "not";
 
+constexpr absl::string_view DYNAMIC_VALUE_HDR = "hdr";
+constexpr absl::string_view DYNAMIC_VALUE_URL_PARAM = "urlp";
+
 enum class OperationType : int {
   SetHeader,
   AppendHeader,
@@ -57,13 +64,26 @@ enum class BooleanOperatorType : int {
   None,
 };
 
+enum class FunctionType : int {
+  GetHdr,
+  Urlp,
+  InvalidFunctionType
+};
+
 OperationType StringToOperationType(absl::string_view operation);
 MatchType StringToMatchType(absl::string_view match);
 BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator);
+FunctionType StringToFunctionType(absl::string_view function);
 
 bool isOperator(BooleanOperatorType operator_type);
 bool isBinaryOperator(BooleanOperatorType operator_type);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2);
+
+std::tuple<absl::Status, std::string> GetFunctionArgument(absl::string_view function_expression);
+FunctionType GetFunctionType(absl::string_view function_expression);
+
+std::tuple<absl::Status, std::string> getHeaderValue(Http::RequestOrResponseHeaderMap& headers, std::vector<absl::string_view> arguments);
+std::tuple<absl::Status, std::string> getUrlp(Http::RequestOrResponseHeaderMap& headers, std::vector<absl::string_view> arguments);
 
 bool requiresArgument(MatchType match_type);
 
