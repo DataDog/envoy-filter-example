@@ -73,7 +73,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
        {
           SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>();
           const std::string boolName(tokens.at(2));
-          const absl::Status status = processor->parseOperation(tokens, tokens.begin());
+          const absl::Status status = processor->parseOperation(tokens, tokens.begin() + 2);
 
           if (!status.ok()) {
             fail(status.message());
@@ -97,7 +97,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
 
     // parse operation
     if (processor) {
-      const absl::Status status = processor->parseOperation(tokens, tokens.begin());
+      const absl::Status status = processor->parseOperation(tokens, tokens.begin() + 2);
       if (!status.ok()) {
         fail(status.message());
         setError();
