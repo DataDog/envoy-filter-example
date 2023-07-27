@@ -25,21 +25,11 @@ public:
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual absl::Status executeOperation();
-  const std::string& getBoolName() const { return bool_name_; }
   const bool getResult(bool negate) const { return negate ? !result_ : result_; }
 
 private:
-  void setBoolName(absl::string_view bool_name) { bool_name_ = std::string(bool_name); }
-
-  const std::pair<std::string, std::string>& getStringsToCompare() const { return strings_to_compare_; }
-  void setStringsToCompare(std::pair<absl::string_view, absl::string_view> strings_to_compare);
-
-  Utility::MatchType getMatchType() const { return match_type_; }
-  void setMatchType(Utility::MatchType match_type) { match_type_ = match_type; }
-
-  std::string bool_name_;
-  std::pair<std::string, std::string> strings_to_compare_;
-  Utility::MatchType match_type_;
+  absl::string_view source_;
+  std::function<bool(absl::string_view)> matcher_ = [](absl::string_view str) -> bool { return false; };
   bool result_;
 };
 
