@@ -133,7 +133,7 @@ namespace HeaderRewriteFilter {
         }
 
         const bool condition_result = getCondition(); // whether the condition is true or false
-        const std::string request_path = getPath();
+        const std::string new_path = getPath();
 
         if (!condition_result) {
             return absl::OkStatus(); // do nothing because condition is false
