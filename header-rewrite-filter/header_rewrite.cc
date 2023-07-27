@@ -26,6 +26,9 @@ HttpHeaderRewriteFilterConfig::HttpHeaderRewriteFilterConfig(
 
 HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr config)
     : config_(config) {
+
+  // make bool processor map
+  set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
   
   const std::string header_config = headerValue();
 
@@ -51,7 +54,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     const bool isResponse = (tokens.at(0) == Utility::HTTP_RESPONSE);
 
     const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
-    ProcessorUniquePtr processor = nullptr;
+    HeaderProcessorUniquePtr processor = nullptr;
 
     switch(operation_type) {
       case Utility::OperationType::SetHeader:
@@ -67,8 +70,25 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         processor = std::make_unique<SetPathProcessor>();
         break;
       case Utility::OperationType::SetBool:
-        processor = std::make_unique<SetBoolProcessor>();
-        break;
+       {
+          SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>();
+          const std::string boolName(tokens.at(2));
+          const absl::Status status = processor->parseOperation(tokens, tokens.begin());
+
+          if (!status.ok()) {
+            fail(status.message());
+            setError();
+            return;
+          }
+          // make sure this boolean variable doesn't already exist in the map
+          if (set_bool_processors_->find(boolName) != set_bool_processors_->end()) {
+            fail("redefinition of boolean variable");
+            setError();
+            return;
+          }
+          set_bool_processors_->insert({boolName, std::move(processor)});
+          break;
+        }
       default:
         fail("invalid operation type");
         setError();
@@ -84,24 +104,12 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
         return;
       }
 
-      // keep track of operations to be executed
+      // keep track of request/response operations to be executed
       if (isRequest) {
         request_header_processors_.push_back(std::move(processor));
       }
       if (isResponse) {
         response_header_processors_.push_back(std::move(processor));
-      }
-      if (operation_type == Utility::OperationType::SetBool) {
-        const std::string boolName(tokens.at(2));
-      
-        // make sure this boolean variable doesn't already exist in the map
-        if (set_bool_processors_.find(boolName) != set_bool_processors_.end()) {
-          fail("redefinition of boolean variable");
-          setError();
-          return;
-        }
-
-        set_bool_processors_.insert({boolName, std::move(processor)});
       }
     }
   }
@@ -123,7 +131,12 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
-    processor->executeOperation(headers);
+    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    if (status != absl::OkStatus()) {
+      ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter");
+      ENVOY_LOG_MISC(info, status.message());
+      return Http::FilterHeadersStatus::Continue;
+    }
   }
 
   return Http::FilterHeadersStatus::Continue;
@@ -137,7 +150,12 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    processor->executeOperation(headers);
+    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    if (status != absl::OkStatus()) {
+      ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter");
+      ENVOY_LOG_MISC(info, status.message());
+      return Http::FilterHeadersStatus::Continue;
+    }
   }
 
   return Http::FilterHeadersStatus::Continue;
