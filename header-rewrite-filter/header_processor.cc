@@ -21,12 +21,9 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-header");
         }
 
-        // TODO: remove
-        start++;
-
         // parse key and call setKey
         try {
-            const absl::string_view key = operation_expression.at(2); // TODO: use start
+            const absl::string_view key = *start;
             setKey(key);
         } catch (const std::exception& e) {
             // should never happen, range is checked above
@@ -36,7 +33,7 @@ namespace HeaderRewriteFilter {
         // parse values and call setVals
         try {
             std::vector<std::string> vals;
-            for(auto it = operation_expression.begin() + 3; it != operation_expression.end(); ++it) {
+            for(auto it = start + 1; it != operation_expression.end(); ++it) {
                 if (*it == "if") { // condition found
 
                     const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
@@ -98,16 +95,13 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-path");
         }
 
-        // TODO: remove
-        start++;
-
         // parse path and call setPath
         try {
-            absl::string_view request_path = operation_expression.at(2); // TODO: use start
+            absl::string_view request_path = *start;
             setPath(request_path);
 
             if (operation_expression.size() > 3) {
-                auto it = operation_expression.begin() + 3;
+                auto it = start + 1;
                 if (*it != "if") {
                     return absl::InvalidArgumentError("second argument to set-path must be a condition");
                 }
@@ -165,22 +159,17 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-bool");
         }
 
-        // TODO: remove
-        start++;
-
         try {
-            absl::string_view bool_name = operation_expression.at(2); // TODO: use start
-
-            if (operation_expression.at(4) != "-m") {
+            if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
 
-            const Utility::MatchType match_type = Utility::StringToMatchType(operation_expression.at(5));
+            const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
             switch (match_type) {
                 case Utility::MatchType::Exact:
-                    source_ = operation_expression.at(3);
-                    matcher_ = [operation_expression](absl::string_view source) { return source == operation_expression.at(6); };
+                    source_ = *(start + 1);
+                    matcher_ = [start](absl::string_view source) { return source == *(start + 4); };
                     break;
                 // TODO: implement this
                 case Utility::MatchType::Substr:
@@ -208,8 +197,12 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
-        // TODO: validate start pointer
-        const Utility::BooleanOperatorType start_type = Utility::StringToBooleanOperatorType(*start);
+        Utility::BooleanOperatorType start_type;
+        try {
+            start_type = Utility::StringToBooleanOperatorType(*start);
+        } catch (std::exception& e) {
+            return absl::InvalidArgumentError("failed to parse condition");
+        }
 
         // conditional can't start with a binary operator
         if (Utility::isBinaryOperator(start_type)) {
@@ -258,6 +251,7 @@ namespace HeaderRewriteFilter {
         try {
             absl::Status status;
             bool bool_var;
+
             SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(operands_.at(0).first));
             if (operands_.size() >= 1) { // this function should never be called if there are no operands
                 // look up the bool in the map, evaluate the value of the bool, and store the result
