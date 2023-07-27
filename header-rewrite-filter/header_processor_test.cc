@@ -127,11 +127,16 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 
 TEST_F(ProcessorTest, SetBoolProcessorTest) {
     std::vector<absl::string_view> true_match_test_cases = {
-        "http set-bool mock_bool matches -m str matches"
+        "http set-bool mock_bool matches -m str matches", // exact
+        "http set-bool mock_bool matches -m beg ma", // prefix
+        "http set-bool mock_bool matches -m sub tch", // substring
     };
 
     std::vector<absl::string_view> false_match_test_cases = {
-        "http set-bool mock_bool matches -m str no-match"
+        "http set-bool mock_bool matches -m str no-match", // exact
+        "http set-bool mock_bool matches -m beg tch", // prefix
+        "http set-bool mock_bool mcatches -m sub not_a_substring" // substring
+
     };
 
     std::vector<absl::string_view> negative_test_cases = {
@@ -147,10 +152,12 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
+        EXPECT_EQ(status.message(), "");
         std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(false);
         status = std::get<0>(result);
         bool bool_result = std::get<1>(result);
         EXPECT_TRUE(status == absl::OkStatus());
+        EXPECT_EQ(status.message(), "");
         EXPECT_TRUE(bool_result);
     }
 
@@ -161,10 +168,12 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
+        EXPECT_EQ(status.message(), "");
         std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(false);
         status = std::get<0>(result);
         bool bool_result = std::get<1>(result);
         EXPECT_TRUE(status == absl::OkStatus());
+        EXPECT_EQ(status.message(), "");
         EXPECT_FALSE(bool_result);
     }
 
