@@ -28,8 +28,8 @@ public:
   const bool getResult(bool negate) const { return negate ? !result_ : result_; }
 
 private:
-  absl::string_view source_;
-  std::function<bool(absl::string_view)> matcher_ = [](absl::string_view str) -> bool { return false; };
+  std::string source_;
+  std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
   bool result_;
 };
 
@@ -48,7 +48,7 @@ public:
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
-  std::vector<std::pair<absl::string_view, bool>> operands_; // operand and whether that operand is negated
+  std::vector<std::pair<std::string, bool>> operands_; // operand and whether that operand is negated
   bool condition_;
 };
 

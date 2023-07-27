@@ -166,10 +166,13 @@ namespace HeaderRewriteFilter {
 
             const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
+            std::string string_to_compare;
+
             switch (match_type) {
                 case Utility::MatchType::Exact:
+                    string_to_compare = std::string(*(start + 4));
                     source_ = *(start + 1);
-                    matcher_ = [start](absl::string_view source) { return source == *(start + 4); };
+                    matcher_ = [string_to_compare](absl::string_view source) { return (source.compare(string_to_compare) == 0); };
                     break;
                 // TODO: implement this
                 case Utility::MatchType::Substr:
@@ -235,10 +238,10 @@ namespace HeaderRewriteFilter {
                 } else if (Utility::isOperator(Utility::StringToBooleanOperatorType(*(it+1)))) {
                     return absl::InvalidArgumentError("invalid condition -- can't have an operator after 'not'");
                 }
-                operands_.push_back(std::pair<absl::string_view, bool>(*(it+1), true));
+                operands_.push_back(std::pair<std::string, bool>(*(it+1), true));
                 it += 2;
             } else {
-                operands_.push_back(std::pair<absl::string_view, bool>(*it, false));
+                operands_.push_back(std::pair<std::string, bool>(*it, false));
                 it++;
             }
         }
