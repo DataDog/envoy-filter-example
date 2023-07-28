@@ -53,32 +53,32 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    absl::Status HeaderProcessor::evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors) {
+    // return status and condition result
+    std::tuple<absl::Status, bool> HeaderProcessor::evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors) {
         // call ConditionProcessor executeOperation; if it is null, return true
-        bool result = true;
         ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
         if (condition_processor) {
-            const absl::Status status = condition_processor->executeOperation(bool_processors);
+            const std::tuple<absl::Status, bool> condition = condition_processor->executeOperation(bool_processors);
+            const absl::Status status = std::get<0>(condition);
             if (status != absl::OkStatus()) {
-                return status;
+                return std::make_tuple(status, false);
             }
-            result = condition_processor->getConditionResult();
+            return std::make_tuple(absl::OkStatus(), std::get<1>(condition)); // return condition result
         }
-        setCondition(result);
 
-        return absl::OkStatus();
+        return std::make_tuple(absl::OkStatus(), true); // no condition present
     }
 
     absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        const absl::Status status = evaluateCondition(bool_processors);
+       const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
         }
-        const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
-        if (!condition_result) {
+        if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
         }
         
@@ -121,15 +121,15 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        const absl::Status status = evaluateCondition(bool_processors);
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
         }
 
-        const bool condition_result = getCondition(); // whether the condition is true or false
         const std::string new_path = getPath();
 
-        if (!condition_result) {
+        if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
         }
 
@@ -172,7 +172,7 @@ namespace HeaderRewriteFilter {
                 case Utility::MatchType::Exact:
                     string_to_compare = std::string(*(start + 4));
                     source_ = *(start + 1);
-                    matcher_ = [string_to_compare](absl::string_view source) { return (source.compare(string_to_compare) == 0); };
+                    matcher_ = [string_to_compare](std::string source) { return (source.compare(string_to_compare) == 0); };
                     break;
                 // TODO: implement this
                 case Utility::MatchType::Substr:
@@ -190,13 +190,15 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    absl::Status SetBoolProcessor::executeOperation() {
+    // return status and bool result
+    std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(bool negate) {
         try {
-            result_ = matcher_(source_);
+            const bool result = matcher_(source_);
+            const bool apply_negation = negate ? !result : result;
+            return std::make_pair(absl::OkStatus(), apply_negation);
         } catch (std::exception& e) {
-            return absl::InvalidArgumentError("failed to perform boolean match");
+            return std::make_pair(absl::InvalidArgumentError("failed to perform boolean match"), false);
         }
-        return absl::OkStatus();
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -238,10 +240,10 @@ namespace HeaderRewriteFilter {
                 } else if (Utility::isOperator(Utility::StringToBooleanOperatorType(*(it+1)))) {
                     return absl::InvalidArgumentError("invalid condition -- can't have an operator after 'not'");
                 }
-                operands_.push_back(std::pair<std::string, bool>(*(it+1), true));
+                operands_.push_back(std::tuple<std::string, bool>(*(it+1), true));
                 it += 2;
             } else {
-                operands_.push_back(std::pair<std::string, bool>(*it, false));
+                operands_.push_back(std::tuple<std::string, bool>(*it, false));
                 it++;
             }
         }
@@ -250,22 +252,24 @@ namespace HeaderRewriteFilter {
         return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
     }
 
-    absl::Status ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
+    // return status and condition result
+    std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
         try {
+            std::tuple<absl::Status, bool> bool_var_result;
             absl::Status status;
             bool bool_var;
 
-            SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(operands_.at(0).first));
+            SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(std::get<0>(operands_.at(0))));
             if (operands_.size() >= 1) { // this function should never be called if there are no operands
                 // look up the bool in the map, evaluate the value of the bool, and store the result
-                status = bool_processor->executeOperation();
+                bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+                status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
-                    return status;
+                    return std::make_tuple(status, false);
                 }
-                bool_var = bool_processor->getResult(operands_.at(0).second);
+                bool_var = std::get<1>(bool_var_result);
                 if (operands_.size() == 1) {
-                    condition_ = bool_var;
-                    return absl::OkStatus();
+                    return std::make_tuple(absl::OkStatus(), bool_var);
                 }
             }
 
@@ -276,24 +280,24 @@ namespace HeaderRewriteFilter {
 
             // continue evaluating the condition from left to right
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
-                bool_processor = set_bool_processors->at(std::string((*operands_it).first));
-                status = bool_processor->executeOperation();
+                bool_processor = set_bool_processors->at(std::string(std::get<0>((*operands_it))));
+
+                bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+                status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
-                    return status;
+                    return std::make_tuple(status, false);
                 }
-                bool_var = bool_processor->getResult((*operands_it).second);
+
+                bool_var = std::get<1>(bool_var_result);
                 result = Utility::evaluateExpression(result, *operators_it, bool_var);
                 operators_it++;
                 operands_it++;
             }
-            
-            // store the result
-            condition_ = result;
 
-            return absl::OkStatus();
+            return std::make_tuple(absl::OkStatus(), result);
 
         } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
-            return absl::InvalidArgumentError("failed to process condition");
+            return std::make_tuple(absl::InvalidArgumentError("failed to process condition"), false);
         }
     }
 

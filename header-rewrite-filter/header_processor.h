@@ -24,13 +24,11 @@ public:
   SetBoolProcessor() {}
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation();
-  const bool getResult(bool negate) const { return negate ? !result_ : result_; }
+  virtual std::tuple<absl::Status, bool> executeOperation(bool negate);  // return status and bool result
 
 private:
   std::string source_;
   std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
-  bool result_;
 };
 
 
@@ -42,14 +40,11 @@ public:
   ConditionProcessor() {}
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation(SetBoolProcessorMapSharedPtr bool_processors);
-
-  bool getConditionResult() const { return condition_; }
+  virtual std::tuple<absl::Status, bool> executeOperation(SetBoolProcessorMapSharedPtr bool_processors);  // return status and condition result
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
-  std::vector<std::pair<std::string, bool>> operands_; // operand and whether that operand is negated
-  bool condition_;
+  std::vector<std::tuple<std::string, bool>> operands_; // operand and whether that operand is negated
 };
 
 using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
@@ -59,18 +54,13 @@ public:
   HeaderProcessor() {}
   virtual ~HeaderProcessor() {}
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) { return absl::OkStatus(); }
-  virtual absl::Status evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors);
-  bool getCondition() const { return condition_; }
-  void setCondition(bool result) { condition_ = result; }
+  virtual std::tuple<absl::Status, bool> evaluateCondition(SetBoolProcessorMapSharedPtr bool_processors);  // return status and condition result
   void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
   ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
 
 protected:
   ConditionProcessorSharedPtr condition_processor_ = nullptr;
   absl::Status ConditionProcessorSetup(std::vector<absl::string_view>& condition_expression, std::vector<absl::string_view>::iterator start);
-
-private:
-  bool condition_;
 };
 
 class SetHeaderProcessor : public HeaderProcessor {
