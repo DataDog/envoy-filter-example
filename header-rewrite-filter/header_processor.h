@@ -99,24 +99,6 @@ private:
   std::vector<std::string> header_vals_; // header values to set
 };
 
-class AppendHeaderProcessor : public HeaderProcessor {
-public:
-  AppendHeaderProcessor() {}
-  virtual ~AppendHeaderProcessor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
-private:
-  // Note: the values returned by these functions must not outlive the AppendHeaderProcessor object
-  const absl::string_view getKey() const { return header_key_; }
-  const std::vector<std::string>& getVals() const { return header_vals_; }
-
-  void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
-
-  std::string header_key_; // header key to set
-  std::vector<std::string> header_vals_; // header values to set
-};
-
 // Note: path being set here includes the query string
 class SetPathProcessor : public HeaderProcessor {
 public:
