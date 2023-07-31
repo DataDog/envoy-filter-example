@@ -32,24 +32,25 @@ namespace HeaderRewriteFilter {
 
         // parse values and call setVals
         try {
-            std::vector<std::string> vals;
-            for(auto it = start + 1; it != operation_expression.end(); ++it) {
-                if (*it == Utility::IF_KEYWORD) { // condition found
+            const absl::string_view val = *(start + 1);
+            setVal(val);
 
-                    const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
+            if ((start + 2) != operation_expression.end()) {
+                if (*(start + 2) == Utility::IF_KEYWORD) { // condition found
+                    const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, start+3); // pass everything after the "if"
 
                     if (status != absl::OkStatus()) {
                         return status;
                     }
-                    break;
                 }
-                vals.push_back(std::string{*it}); // could throw bad_alloc
+                else {
+                    return absl::InvalidArgumentError("third argument to set-header must be a condition");
+                }
             }
-            setVals(vals);
+
         } catch (const std::exception& e) {
             return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
         }
-
         return absl::OkStatus();
     }
 
@@ -113,16 +114,14 @@ namespace HeaderRewriteFilter {
             return status;
         }
         const absl::string_view key = getKey();
-        const std::vector<std::string>& header_vals = getVals();
+        const std::string header_val(getVal());
 
         if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
         }
         
         // set header
-        for (auto const& header_val : header_vals) {
-            headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
-        }
+        headers.setCopy(Http::LowerCaseString(key), header_val); // should never return an error
 
         return absl::OkStatus();
     }
@@ -141,7 +140,7 @@ namespace HeaderRewriteFilter {
             return absl::OkStatus(); // do nothing because condition is false
         }
         
-        // set header
+        // append header
         for (auto const& header_val : header_vals) {
             headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
         }
@@ -314,22 +313,16 @@ namespace HeaderRewriteFilter {
     // return status and condition result
     std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(SetBoolProcessorMapSharedPtr set_bool_processors) {
         try {
-            std::tuple<absl::Status, bool> bool_var_result;
-            absl::Status status;
-            bool bool_var;
-
             SetBoolProcessorSharedPtr bool_processor = set_bool_processors->at(std::string(std::get<0>(operands_.at(0))));
-            if (operands_.size() >= 1) { // this function should never be called if there are no operands
-                // look up the bool in the map, evaluate the value of the bool, and store the result
-                bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
-                status = std::get<0>(bool_var_result);
-                if (status != absl::OkStatus()) {
-                    return std::make_tuple(status, false);
-                }
-                bool_var = std::get<1>(bool_var_result);
-                if (operands_.size() == 1) {
-                    return std::make_tuple(absl::OkStatus(), bool_var);
-                }
+            // look up the bool in the map, evaluate the value of the bool, and store the result
+            const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+            const absl::Status status = std::get<0>(bool_var_result);
+            if (status != absl::OkStatus()) {
+                return std::make_pair(status, false);
+            }
+            const bool bool_var = std::get<1>(bool_var_result);
+            if (operands_.size() == 1) {
+                return std::make_pair(absl::OkStatus(), bool_var);
             }
 
             bool result = bool_var;
@@ -341,13 +334,13 @@ namespace HeaderRewriteFilter {
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
                 bool_processor = set_bool_processors->at(std::string(std::get<0>((*operands_it))));
 
-                bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
-                status = std::get<0>(bool_var_result);
+                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+                const absl::Status status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
                     return std::make_tuple(status, false);
                 }
 
-                bool_var = std::get<1>(bool_var_result);
+                const bool bool_var = std::get<1>(bool_var_result);
                 result = Utility::evaluateExpression(result, *operators_it, bool_var);
                 operators_it++;
                 operands_it++;
