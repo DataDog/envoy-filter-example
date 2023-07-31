@@ -129,7 +129,7 @@ namespace HeaderRewriteFilter {
 
 
     absl::Status AppendHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
-        const std::pair<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -254,9 +254,9 @@ namespace HeaderRewriteFilter {
         try {
             const bool result = matcher_(source_);
             const bool apply_negation = negate ? !result : result;
-            return std::make_pair(absl::OkStatus(), apply_negation);
+            return std::make_tuple(absl::OkStatus(), apply_negation);
         } catch (std::exception& e) {
-            return std::make_pair(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), false);
+            return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), false);
         }
     }
 
