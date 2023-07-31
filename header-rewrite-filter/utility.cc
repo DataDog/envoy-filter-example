@@ -7,11 +7,13 @@ namespace HeaderRewriteFilter {
 namespace Utility {
 
  OperationType StringToOperationType(absl::string_view operation) {
-    if (operation == "set-header") {
+    if (operation == OPERATION_SET_HEADER) {
         return OperationType::SetHeader;
-    } else if (operation == "set-path") {
+    } else if (operation == OPERATION_APPEND_HEADER) {
+        return OperationType::AppendHeader;
+    } else if (operation == OPERATION_SET_PATH) {
         return OperationType::SetPath;
-    } else if (operation == "set-bool") {
+    } else if (operation == OPERATION_SET_BOOL) {
         return OperationType::SetBool;
     } else {
         return OperationType::InvalidOperation;
@@ -31,11 +33,11 @@ MatchType StringToMatchType(absl::string_view match) {
 }
 
 BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator) {
-    if (bool_operator == "and") {
+    if (bool_operator == BOOLEAN_AND) {
         return BooleanOperatorType::And;
-    } else if (bool_operator == "or") {
+    } else if (bool_operator == BOOLEAN_OR) {
         return BooleanOperatorType::Or;
-    } else if (bool_operator == "not") {
+    } else if (bool_operator == BOOLEAN_NOT) {
         return BooleanOperatorType::Not;
     } else {
         return BooleanOperatorType::None;

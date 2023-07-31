@@ -27,14 +27,14 @@ namespace HeaderRewriteFilter {
             setKey(key);
         } catch (const std::exception& e) {
             // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing header key");
+            return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
         }
 
         // parse values and call setVals
         try {
             std::vector<std::string> vals;
             for(auto it = start + 1; it != operation_expression.end(); ++it) {
-                if (*it == "if") { // condition found
+                if (*it == Utility::IF_KEYWORD) { // condition found
 
                     const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
 
@@ -47,7 +47,44 @@ namespace HeaderRewriteFilter {
             }
             setVals(vals);
         } catch (const std::exception& e) {
-            return absl::InvalidArgumentError("error parsing header values");
+            return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
+        }
+
+        return absl::OkStatus();
+    }
+
+    absl::Status AppendHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
+        if (operation_expression.size() < Utility::APPEND_HEADER_MIN_NUM_ARGUMENTS) {
+            return absl::InvalidArgumentError("not enough arguments for set-header");
+        }
+
+        // parse key and call setKey
+        try {
+            const absl::string_view key = *start;
+            setKey(key);
+        } catch (const std::exception& e) {
+            // should never happen, range is checked above
+            return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
+        }
+
+        // parse values and call setVals
+        try {
+            std::vector<std::string> vals;
+            for(auto it = start + 1; it != operation_expression.end(); ++it) {
+                if (*it == Utility::IF_KEYWORD) { // condition found
+
+                    const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
+
+                    if (status != absl::OkStatus()) {
+                        return status;
+                    }
+                    break;
+                }
+                vals.push_back(std::string{*it}); // could throw bad_alloc
+            }
+            setVals(vals);
+        } catch (const std::exception& e) {
+            return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -75,7 +112,29 @@ namespace HeaderRewriteFilter {
         if (status != absl::OkStatus()) {
             return status;
         }
-        const std::string key = getKey();
+        const absl::string_view key = getKey();
+        const std::vector<std::string>& header_vals = getVals();
+
+        if (!std::get<1>(condition_result)) {
+            return absl::OkStatus(); // do nothing because condition is false
+        }
+        
+        // set header
+        for (auto const& header_val : header_vals) {
+            headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
+        }
+
+        return absl::OkStatus();
+    }
+
+
+    absl::Status AppendHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) {
+        const std::pair<absl::Status, bool> condition_result = evaluateCondition(bool_processors);
+        const absl::Status status = std::get<0>(condition_result);
+        if (status != absl::OkStatus()) {
+            return status;
+        }
+        const absl::string_view key = getKey();
         const std::vector<std::string>& header_vals = getVals();
 
         if (!std::get<1>(condition_result)) {
@@ -102,7 +161,7 @@ namespace HeaderRewriteFilter {
 
             if (operation_expression.size() > 3) {
                 auto it = start + 1;
-                if (*it != "if") {
+                if (*it != Utility::IF_KEYWORD) {
                     return absl::InvalidArgumentError("second argument to set-path must be a condition");
                 }
 
@@ -114,7 +173,7 @@ namespace HeaderRewriteFilter {
             }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing request path argument");
+            return absl::InvalidArgumentError("error parsing request path argument -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -184,7 +243,7 @@ namespace HeaderRewriteFilter {
             }
 
         } catch (const std::exception& e) {
-            return absl::InvalidArgumentError("error parsing boolean expression");
+            return absl::InvalidArgumentError("error parsing boolean expression -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -197,7 +256,7 @@ namespace HeaderRewriteFilter {
             const bool apply_negation = negate ? !result : result;
             return std::make_pair(absl::OkStatus(), apply_negation);
         } catch (std::exception& e) {
-            return std::make_pair(absl::InvalidArgumentError("failed to perform boolean match"), false);
+            return std::make_pair(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), false);
         }
     }
 
@@ -206,7 +265,7 @@ namespace HeaderRewriteFilter {
         try {
             start_type = Utility::StringToBooleanOperatorType(*start);
         } catch (std::exception& e) {
-            return absl::InvalidArgumentError("failed to parse condition");
+            return absl::InvalidArgumentError("failed to parse condition -- " + std::string(e.what()));
         }
 
         // conditional can't start with a binary operator
@@ -297,7 +356,7 @@ namespace HeaderRewriteFilter {
             return std::make_tuple(absl::OkStatus(), result);
 
         } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
-            return std::make_tuple(absl::InvalidArgumentError("failed to process condition"), false);
+            return std::make_tuple(absl::InvalidArgumentError("failed to process condition" + std::string(e.what())), false);
         }
     }
 
