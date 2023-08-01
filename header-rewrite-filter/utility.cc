@@ -57,6 +57,9 @@ bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool op
     return operand1 || operand2;
 }
 
+bool requiresArgument(MatchType match_type) {
+    return (match_type == MatchType::Exact || match_type == MatchType::Substr);
+}
 
 } // namespace Utility
 } // namespace HeaderRewriteFilter
