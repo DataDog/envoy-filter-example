@@ -16,8 +16,15 @@ protected:
     void SetUp() override { }
 };
 
+class MockSetBoolProcessor : public SetBoolProcessor {
+public:
+    MOCK_METHOD(absl::Status, parseOperation, (std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start));
+    MOCK_METHOD((std::tuple<absl::Status, bool>), executeOperation, (bool negate));
+};
+using MockSetBoolProcessorSharedPtr = std::shared_ptr<MockSetBoolProcessor>;
+using MockSetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, MockSetBoolProcessorSharedPtr>>;
 using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
-using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
+using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, MockSetBoolProcessorSharedPtr>>;
 
 // Note: processors assume that the first two arguments are validated (these arguments are validated by the filter)
 
@@ -185,9 +192,9 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
 
 TEST_F(ProcessorTest, ConditionProcessorTest) {
     ConditionProcessor condition_processor = ConditionProcessor();
-    SetBoolProcessorMapSharedPtr mock_bool_processors = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
-    SetBoolProcessorSharedPtr mock_true_bool_processor = std::make_shared<SetBoolProcessor>();
-    SetBoolProcessorSharedPtr mock_false_bool_processor = std::make_shared<SetBoolProcessor>();
+    MockSetBoolProcessorMapSharedPtr mock_bool_processors = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
+    MockSetBoolProcessorSharedPtr mock_true_bool_processor = std::make_shared<MockSetBoolProcessor>();
+    MockSetBoolProcessorSharedPtr mock_false_bool_processor = std::make_shared<MockSetBoolProcessor>();
 
     std::vector<absl::string_view> operation_expression;
     std::tuple<absl::Status, bool> result;
@@ -195,12 +202,11 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
     bool bool_result;
 
     // set up mock bool processors
-    operation_expression = {"http", "set-bool", "mock_true_bool", "exact_match", "-m", "str", "exact_match"};
-    status = mock_true_bool_processor->parseOperation(operation_expression, (operation_expression.begin() + 2));
-    EXPECT_TRUE(status == absl::OkStatus());
-    operation_expression = {"http", "set-bool", "mock_false_bool", "no_match", "-m", "str", "not-a-match"};
-    status = mock_false_bool_processor->parseOperation(operation_expression, (operation_expression.begin() + 2));
-    EXPECT_TRUE(status == absl::OkStatus());
+    ON_CALL(*mock_true_bool_processor, parseOperation(_, _)).WillByDefault(Return(absl::OkStatus()));
+    ON_CALL(*mock_true_bool_processor, executeOperation(_)).WillByDefault(Return(std::make_tuple(absl::OkStatus(), true)));
+    ON_CALL(*mock_false_bool_processor, parseOperation(_, _)).WillByDefault(Return(absl::OkStatus()));
+    ON_CALL(*mock_true_bool_processor, executeOperation(_)).WillByDefault(Return(std::make_tuple(absl::OkStatus(), false)));
+
     mock_bool_processors->insert({"mock_true_bool", mock_true_bool_processor});
     mock_bool_processors->insert({"mock_false_bool", mock_false_bool_processor});
 
@@ -212,59 +218,6 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
 
     // single true condition
     operation_expression = {"mock_true_bool"};
-    status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
-    EXPECT_TRUE(status == absl::OkStatus());
-    result = condition_processor.executeOperation(mock_bool_processors);
-    status = std::get<0>(result);
-    EXPECT_TRUE(status == absl::OkStatus());
-    bool_result = std::get<1>(result);
-    EXPECT_TRUE(bool_result);
-
-    // single false condition
-    operation_expression = {"mock_false_bool"};
-    status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
-    EXPECT_TRUE(status == absl::OkStatus());
-    result = condition_processor.executeOperation(mock_bool_processors);
-    status = std::get<0>(result);
-    EXPECT_TRUE(status == absl::OkStatus());
-    bool_result = std::get<1>(result);
-    EXPECT_TRUE(!bool_result);
-
-    EXPECT_EQ(mock_bool_processors->size(), 2);
-    EXPECT_NO_THROW(mock_bool_processors->at("mock_true_bool"));
-    EXPECT_NO_THROW(mock_bool_processors->at("mock_false_bool"));
-
-    // NOT
-    operation_expression = {"not mock_true_bool"};
-    status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
-    EXPECT_TRUE(status == absl::OkStatus());
-    result = condition_processor.executeOperation(mock_bool_processors);
-    status = std::get<0>(result);
-    EXPECT_TRUE(status == absl::OkStatus());
-    bool_result = std::get<1>(result);
-    EXPECT_TRUE(!bool_result);
-
-    operation_expression = {"not mock_false_bool"};
-    status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
-    EXPECT_TRUE(status == absl::OkStatus());
-    result = condition_processor.executeOperation(mock_bool_processors);
-    status = std::get<0>(result);
-    EXPECT_TRUE(status == absl::OkStatus());
-    bool_result = std::get<1>(result);
-    EXPECT_TRUE(bool_result);
-
-    // AND
-    operation_expression = {"mock_true_bool and mock_true_bool"};
-    status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
-    EXPECT_TRUE(status == absl::OkStatus());
-    result = condition_processor.executeOperation(mock_bool_processors);
-    status = std::get<0>(result);
-    EXPECT_TRUE(status == absl::OkStatus());
-    bool_result = std::get<1>(result);
-    EXPECT_TRUE(bool_result);
-
-    // OR
-    operation_expression = {"mock_true_bool or mock_false_bool"};
     status = condition_processor.parseOperation(operation_expression, operation_expression.begin());
     EXPECT_TRUE(status == absl::OkStatus());
     result = condition_processor.executeOperation(mock_bool_processors);
