@@ -46,11 +46,15 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite
               key: header-processing
               val: |
-                  http set-bool mock_bool matches -m str matches
-                  http set-bool another_mock_bool no-match -m str matches
-                  http-request set-path mockpath if not another_mock_bool
-                  http-request append-header key value1 value2 value3 if not mock_bool or another_mock_bool or not another_mock_bool
-                  http-request set-header x-forwarded-proto https if mock_bool and mock_bool or not mock_bool
+                  http set-bool prefix_true_bool mock_string -m beg mock
+                  http set-bool prefix_false_bool mock_string -m beg string
+                  http set-bool substring_true_bool mock_substring -m sub str
+                  http set-bool substring_false_bool mock_substring -m sub not_a_substring
+                  http-request set-path mockpath if prefix_true_bool
+                  http-request set-header mock_request_hdr_prefix mock_val if prefix_false_bool
+                  http-response set-header mock_response_hdr_prefix mock_response_val if prefix_true_bool
+                  http-request set-header mock_request_hdr_substring mock_val if substring_true_bool
+                  http-response set-header mock_response_hdr_substring mock_val if substring_false_bool
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

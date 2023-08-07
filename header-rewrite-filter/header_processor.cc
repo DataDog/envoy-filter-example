@@ -236,17 +236,22 @@ namespace HeaderRewriteFilter {
                 return absl::InvalidArgumentError("too many arguments for set bool");
             }
 
-            std::string string_to_compare;
+            const std::string string_to_compare = std::string(*(start + 4));
 
             switch (match_type) {
                 case Utility::MatchType::Exact:
-                    string_to_compare = std::string(*(start + 4));
-                    source_ = *(start + 1);
-                    matcher_ = [string_to_compare](std::string source) { return (source.compare(string_to_compare) == 0); };
+                    source_ = std::string(*(start + 1));
+                    matcher_ = [string_to_compare](std::string source) { return source.compare(string_to_compare) == 0; };
+                    break;
+                case Utility::MatchType::Prefix:
+                    source_ = std::string(*(start + 1));
+                    matcher_ = [string_to_compare](std::string source) { return string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
+                    break;
+                case Utility::MatchType::Substr:
+                    source_ = std::string(*(start + 1));
+                    matcher_ = [string_to_compare](std::string source) { return source.find(string_to_compare) != std::string::npos; };
                     break;
                 // TODO: implement this
-                case Utility::MatchType::Substr:
-                    break;
                 case Utility::MatchType::Found:
                     break;
                 default:
