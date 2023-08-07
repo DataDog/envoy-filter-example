@@ -56,7 +56,7 @@ namespace HeaderRewriteFilter {
 
     absl::Status AppendHeaderProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         if (operation_expression.size() < Utility::APPEND_HEADER_MIN_NUM_ARGUMENTS) {
-            return absl::InvalidArgumentError("not enough arguments for set-header");
+            return absl::InvalidArgumentError("not enough arguments for append-header");
         }
 
         // parse key and call setKey
@@ -224,6 +224,18 @@ namespace HeaderRewriteFilter {
 
             const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
+            // validate number of arguments
+            if (Utility::requiresArgument(match_type)) {
+                if (operation_expression.size() == Utility::SET_BOOL_MIN_NUM_ARGUMENTS) {
+                    return absl::InvalidArgumentError("missing argument for match type");
+                }
+                if (operation_expression.size() > (Utility::SET_BOOL_MIN_NUM_ARGUMENTS + 1)) {
+                    return absl::InvalidArgumentError("too many arguments for set bool");
+                }
+            } else if (operation_expression.size() > Utility::SET_BOOL_MIN_NUM_ARGUMENTS) { // if match type does not have an arg
+                return absl::InvalidArgumentError("too many arguments for set bool");
+            }
+
             std::string string_to_compare;
 
             switch (match_type) {
@@ -260,16 +272,19 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
+        // make sure operands and operators vectors are empty
+        operands_ = {};
+        operators_ = {};
+
         Utility::BooleanOperatorType start_type;
-        try {
-            start_type = Utility::StringToBooleanOperatorType(*start);
-        } catch (std::exception& e) {
-            return absl::InvalidArgumentError("failed to parse condition -- " + std::string(e.what()));
+        if (operation_expression.size() < 1) {
+            return absl::InvalidArgumentError("empty condition provided to condition processor");
         }
+        start_type = Utility::StringToBooleanOperatorType(*start);
 
         // conditional can't start with a binary operator
         if (Utility::isBinaryOperator(start_type)) {
-            return absl::InvalidArgumentError("invalid condition -- condition must begin with '!' or an operand");
+            return absl::InvalidArgumentError("invalid condition -- condition must begin with 'not' or an operand");
         }
 
         for (auto it = start; it != operation_expression.end();) {
@@ -307,7 +322,7 @@ namespace HeaderRewriteFilter {
         }
 
         // validate number of operands and operators
-        return (operators_.size() == operands_.size() - 1) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
+        return (operators_.size() == (operands_.size() - 1)) ? absl::OkStatus() : absl::InvalidArgumentError("invalid condition");
     }
 
     // return status and condition result
@@ -334,7 +349,7 @@ namespace HeaderRewriteFilter {
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
                 bool_processor = set_bool_processors->at(std::string(std::get<0>((*operands_it))));
 
-                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(operands_.at(0)));
+                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(std::get<1>(*operands_it));
                 const absl::Status status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
                     return std::make_tuple(status, false);
@@ -349,7 +364,7 @@ namespace HeaderRewriteFilter {
             return std::make_tuple(absl::OkStatus(), result);
 
         } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
-            return std::make_tuple(absl::InvalidArgumentError("failed to process condition" + std::string(e.what())), false);
+            return std::make_tuple(absl::InvalidArgumentError("failed to process condition -- " + std::string(e.what())), false);
         }
     }
 

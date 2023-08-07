@@ -63,6 +63,8 @@ bool isOperator(BooleanOperatorType operator_type);
 bool isBinaryOperator(BooleanOperatorType operator_type);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2);
 
+bool requiresArgument(MatchType match_type);
+
 } // namespace Utility
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters
