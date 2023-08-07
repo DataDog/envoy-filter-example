@@ -23,6 +23,8 @@ namespace Utility {
 MatchType StringToMatchType(absl::string_view match) {
    if (match == MATCH_TYPE_EXACT) {
         return MatchType::Exact;
+    } else if (match == MATCH_TYPE_PREFIX) {
+        return MatchType::Prefix;
     } else if (match == MATCH_TYPE_SUBSTR) {
         return MatchType::Substr;
     } else if (match == MATCH_TYPE_FOUND) {
@@ -58,7 +60,7 @@ bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool op
 }
 
 bool requiresArgument(MatchType match_type) {
-    return (match_type == MatchType::Exact || match_type == MatchType::Substr);
+    return (match_type == MatchType::Exact || match_type == MatchType::Substr || match_type == MatchType::Prefix);
 }
 
 } // namespace Utility
