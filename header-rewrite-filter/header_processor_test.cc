@@ -127,11 +127,16 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 
 TEST_F(ProcessorTest, SetBoolProcessorTest) {
     std::vector<absl::string_view> true_match_test_cases = {
-        "http set-bool mock_bool matches -m str matches"
+        "http set-bool mock_bool matches -m str matches", // exact
+        "http set-bool mock_bool matches -m beg ma", // prefix
+        "http set-bool mock_bool matches -m sub tch", // substring
     };
 
     std::vector<absl::string_view> false_match_test_cases = {
-        "http set-bool mock_bool matches -m str no-match"
+        "http set-bool mock_bool matches -m str no-match", // exact
+        "http set-bool mock_bool matches -m beg tch", // prefix
+        "http set-bool mock_bool mcatches -m sub not_a_substring" // substring
+
     };
 
     std::vector<absl::string_view> negative_test_cases = {
