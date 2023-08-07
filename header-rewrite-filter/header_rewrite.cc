@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "header_rewrite.h"
-#include "utility.h"
 
 #include "source/common/common/utility.h"
 #include "source/common/common/logger.h"
@@ -56,25 +55,38 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
     HeaderProcessorUniquePtr processor = nullptr;
 
+    auto bool_processors = isRequest ? request_set_bool_processors_ : response_set_bool_processors_;
+
     switch(operation_type) {
       case Utility::OperationType::SetHeader:
-        processor = std::make_unique<SetHeaderProcessor>();
+      {
+        processor = std::make_unique<SetHeaderProcessor>(bool_processors, isRequest);
         break;
+      }
       case Utility::OperationType::AppendHeader:
-        processor = std::make_unique<AppendHeaderProcessor>();
+      {
+        processor = std::make_unique<AppendHeaderProcessor>(bool_processors, isRequest);
         break;
+      }
+      case Utility::OperationType::SetDynMetadata:
+      {
+        processor = std::make_unique<SetDynamicMetadataProcessor>(bool_processors, isRequest);
+        break;
+      }
       case Utility::OperationType::SetPath:
+      {
         if (!isRequest) {
           fail("set-path can only be on request");
           setError();
           return;
         }
         // path being set here includes the query string
-        processor = std::make_unique<SetPathProcessor>();
+        processor = std::make_unique<SetPathProcessor>(bool_processors, isRequest);
         break;
+      }
       case Utility::OperationType::SetBool:
        {
-          SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>();
+          SetBoolProcessorSharedPtr processor = std::make_unique<SetBoolProcessor>(bool_processors, isRequest);
           const std::string boolName(tokens.at(2));
           const absl::Status status = processor->parseOperation(tokens, tokens.begin() + 2);
 
@@ -136,10 +148,9 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, request_set_bool_processors_);
+    const absl::Status status = processor->executeOperation(headers, decoder_callbacks_);
     if (status != absl::OkStatus()) {
-      ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter");
-      ENVOY_LOG_MISC(info, status.message());
+      ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter -- " + std::string(status.message()));
       return Http::FilterHeadersStatus::Continue;
     }
   }
@@ -155,10 +166,9 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, response_set_bool_processors_);
+    const absl::Status status = processor->executeOperation(headers, encoder_callbacks_);
     if (status != absl::OkStatus()) {
-      ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter");
-      ENVOY_LOG_MISC(info, status.message());
+      ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter -- " + std::string(status.message()));
       return Http::FilterHeadersStatus::Continue;
     }
   }
