@@ -24,7 +24,7 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, HttpFilterHeaderRewriteIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 // test adding a new header key-value pair
-TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
+TEST_P(HttpFilterHeaderRewriteIntegrationTest, SetHeader) {
   SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
     "val: http-request set-header sample_key sample_value } }");
   Http::TestRequestHeaderMapImpl headers{
@@ -52,9 +52,9 @@ TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test1) {
 }
 
 // test adding a new value to an already existing header
-TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test2) {
+TEST_P(HttpFilterHeaderRewriteIntegrationTest, AppendHeader) {
   SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
-    "val: http-request set-header sample_key sample_value2 sample_value3 } }");
+    "val: http-request append-header sample_key sample_value2 sample_value3 } }");
   Http::TestRequestHeaderMapImpl headers{
       {":method", "GET"}, {":path", "/"}, {":authority", "host"}, {"sample_key", "sample_value1"}};
   Http::TestRequestHeaderMapImpl response_headers{
@@ -75,6 +75,43 @@ TEST_P(HttpFilterHeaderRewriteIntegrationTest, Test2) {
   EXPECT_EQ(
       "sample_value1,sample_value2,sample_value3",
       request_stream->headers().get(Http::LowerCaseString("sample_key"))[0]->value().getStringView());
+
+  codec_client->close();
+}
+
+// test set-metadata operation
+TEST_P(HttpFilterHeaderRewriteIntegrationTest, SetMetadata) {
+  SetUp("{ name: sample, typed_config: { \"@type\": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite, key: header-processing,"
+    "\"val\": \"http-request set-metadata mock_key %[hdr(mock_header)]\" } }");
+  Http::TestRequestHeaderMapImpl headers{
+      {":method", "GET"}, {":path", "/"}, {":authority", "host"}, {"mock_header", "mock_value"}};
+  Http::TestRequestHeaderMapImpl response_headers{
+      {":status", "200"}};
+
+  IntegrationCodecClientPtr codec_client;
+  FakeHttpConnectionPtr fake_upstream_connection;
+  FakeStreamPtr request_stream;
+
+  codec_client = makeHttpConnection(lookupPort("http"));
+  auto response = codec_client->makeHeaderOnlyRequest(headers);
+  ASSERT_TRUE(fake_upstreams_[0]->waitForHttpConnection(*dispatcher_, fake_upstream_connection));
+  ASSERT_TRUE(fake_upstream_connection->waitForNewStream(*dispatcher_, request_stream));
+  ASSERT_TRUE(request_stream->waitForEndStream(*dispatcher_));
+  request_stream->encodeHeaders(response_headers, true);
+  ASSERT_TRUE(response->waitForEndStream());
+
+  const auto filter_metadata_map = request_stream->streamInfo().dynamicMetadata().filter_metadata();
+  
+  // verify metadata for the filter exists
+  EXPECT_TRUE(filter_metadata_map.find("envoy.extensions.filters.http.HeaderRewrite") != filter_metadata_map.end());
+
+  const auto metadata_map = filter_metadata_map.find("envoy.extensions.filters.http.HeaderRewrite")->second.fields();
+
+  // verify metadata with the expected key exists
+  EXPECT_TRUE(metadata_map.find("mock_key") != metadata_map.end());
+
+  // verify expected value of metadata
+  EXPECT_EQ("mock_value", metadata_map.find("mock_key")->second.string_value());
 
   codec_client->close();
 }
