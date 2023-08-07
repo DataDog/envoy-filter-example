@@ -28,7 +28,8 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     : config_(config) {
 
   // make bool processor map
-  set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
+  request_set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
+  response_set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
   
   const std::string header_config = headerValue();
 
@@ -45,13 +46,12 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
     }
 
     // determine if it's request/response
-    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE && tokens.at(0) != Utility::HTTP_REQUEST_RESPONSE) {
-      fail("first argument must be <http-response/http-request/http>");
+    if (tokens.at(0) != Utility::HTTP_REQUEST && tokens.at(0) != Utility::HTTP_RESPONSE) {
+      fail("first argument must be <http-response/http-request>");
       setError();
       return;
     }
     const bool isRequest = (tokens.at(0) == Utility::HTTP_REQUEST);
-    const bool isResponse = (tokens.at(0) == Utility::HTTP_RESPONSE);
 
     const Utility::OperationType operation_type = Utility::StringToOperationType(absl::string_view(tokens.at(1)));
     HeaderProcessorUniquePtr processor = nullptr;
@@ -84,12 +84,15 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
             return;
           }
           // make sure this boolean variable doesn't already exist in the map
-          if (set_bool_processors_->find(boolName) != set_bool_processors_->end()) {
+          if (isRequest && request_set_bool_processors_->find(boolName) == request_set_bool_processors_->end()) {
+            request_set_bool_processors_->insert({boolName, std::move(processor)});
+          } else if (!isRequest && response_set_bool_processors_->find(boolName) == response_set_bool_processors_->end()) {
+            response_set_bool_processors_->insert({boolName, std::move(processor)});
+          } else {
             fail("redefinition of boolean variable");
             setError();
             return;
           }
-          set_bool_processors_->insert({boolName, std::move(processor)});
           break;
         }
       default:
@@ -110,8 +113,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
       // keep track of request/response operations to be executed
       if (isRequest) {
         request_header_processors_.push_back(std::move(processor));
-      }
-      if (isResponse) {
+      } else {
         response_header_processors_.push_back(std::move(processor));
       }
     }
@@ -134,7 +136,7 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
 
   // execute each operation
   for (auto const& processor : request_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    const absl::Status status = processor->executeOperation(headers, request_set_bool_processors_);
     if (status != absl::OkStatus()) {
       ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter");
       ENVOY_LOG_MISC(info, status.message());
@@ -153,7 +155,7 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
 
   // execute each operation
   for (auto const& processor : response_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, set_bool_processors_);
+    const absl::Status status = processor->executeOperation(headers, response_set_bool_processors_);
     if (status != absl::OkStatus()) {
       ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter");
       ENVOY_LOG_MISC(info, status.message());

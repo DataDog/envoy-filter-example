@@ -51,7 +51,8 @@ private:
   std::vector<HeaderProcessorUniquePtr> response_header_processors_;
 
   // set_bool processors
-  SetBoolProcessorMapSharedPtr set_bool_processors_;
+  SetBoolProcessorMapSharedPtr request_set_bool_processors_;
+  SetBoolProcessorMapSharedPtr response_set_bool_processors_;
 
   const Http::LowerCaseString headerKey() const;
   const std::string headerValue() const;

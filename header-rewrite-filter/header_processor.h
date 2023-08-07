@@ -25,7 +25,7 @@ class DynamicFunctionProcessor : public Processor {
 public:
   DynamicFunctionProcessor() {}
   virtual ~DynamicFunctionProcessor() {}
-  virtual absl::Status parseOperation(absl::string_view function_expression);
+  virtual absl::Status parseOperation(absl::string_view function_expression, const bool isRequest);
   std::tuple<absl::Status, std::string> executeOperation(Http::RequestOrResponseHeaderMap& headers);
 
 private:

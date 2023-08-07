@@ -212,11 +212,14 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status SetBoolProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
-        if (operation_expression.size() < Utility::SET_BOOL_MIN_NUM_ARGUMENTS) {
-            return absl::InvalidArgumentError("not enough arguments for set-bool");
-        }
-
         try {
+            if (operation_expression.size() < Utility::SET_BOOL_MIN_NUM_ARGUMENTS) {
+                return absl::InvalidArgumentError("not enough arguments for set-bool");
+            }
+
+            // header rewrite filter has already verified that the operation is always either http-request or http-response
+            const bool isRequest = operation_expression.at(0) == Utility::HTTP_REQUEST;
+
             if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
@@ -237,7 +240,7 @@ namespace HeaderRewriteFilter {
             // parse dynamic function
             dynamic_function_processor_ = std::make_shared<DynamicFunctionProcessor>();
             const absl::string_view dynamic_function_expression = *(start + 1);
-            const absl::Status dynamic_function_status = dynamic_function_processor_->parseOperation(dynamic_function_expression);
+            const absl::Status dynamic_function_status = dynamic_function_processor_->parseOperation(dynamic_function_expression, isRequest);
             if (dynamic_function_status != absl::OkStatus()) {
                 return dynamic_function_status;
             }
@@ -409,10 +412,13 @@ namespace HeaderRewriteFilter {
     return Utility::StringToFunctionType(dynamic_function);
   }
 
-  absl::Status DynamicFunctionProcessor::parseOperation(absl::string_view function_expression) {
+  absl::Status DynamicFunctionProcessor::parseOperation(absl::string_view function_expression, const bool isRequest) {
     function_type_ = getFunctionType(function_expression);
     if (function_type_ == Utility::FunctionType::InvalidFunctionType) {
         return absl::InvalidArgumentError("invalid function type for dynamic value");
+    }
+    if (function_type_ == Utility::FunctionType::Urlp && !isRequest) {
+        return absl::InvalidArgumentError("cannot get url path parameter on response side");
     }
     const std::tuple<absl::Status, std::string> get_function_argument_result = getFunctionArgument(function_expression);
     const absl::Status status = std::get<0>(get_function_argument_result);
