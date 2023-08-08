@@ -220,7 +220,6 @@ namespace HeaderRewriteFilter {
             if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
-            
             const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
 
             // validate number of arguments
@@ -236,35 +235,30 @@ namespace HeaderRewriteFilter {
             }
 
             // parse dynamic function
-            const auto dynamic_function_expression = *(start + 1);
-            function_type_ = Utility::GetFunctionType(dynamic_function_expression);
-            if (function_type_ == Utility::FunctionType::InvalidFunctionType) {
-                return absl::InvalidArgumentError("invalid function type for dynamic value");
+            dynamic_function_processor_ = std::make_shared<DynamicFunctionProcessor>();
+            const absl::string_view dynamic_function_expression = *(start + 1);
+            const absl::Status dynamic_function_status = dynamic_function_processor_->parseOperation(dynamic_function_expression);
+            if (dynamic_function_status != absl::OkStatus()) {
+                return dynamic_function_status;
             }
-            const std::tuple<absl::Status, std::string> get_function_argument_result = Utility::GetFunctionArgument(dynamic_function_expression);
-            const absl::Status status = std::get<0>(get_function_argument_result);
-            if (status != absl::OkStatus()) {
-                return status;
-            }
-            function_argument_ = std::get<1>(get_function_argument_result);
 
             switch (match_type) {
                 case Utility::MatchType::Exact:
                 {
                     std::string string_to_compare = std::string(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return (source.compare(string_to_compare) == 0); };
+                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.compare(string_to_compare) == 0; };
                     break;
                 }
                 case Utility::MatchType::Prefix:
                 {
                     std::string string_to_compare = std::string(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
+                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
                     break;
                 }
                 case Utility::MatchType::Substr:
                 {
                     std::string string_to_compare = std::string(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return source.find(string_to_compare) != std::string::npos; };
+                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.find(string_to_compare) != std::string::npos; };
                     break;
                 }
                 case Utility::MatchType::Found: // urlp found or hdr found
@@ -280,37 +274,16 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("error parsing boolean expression -- " + std::string(e.what()));
         }
 
-
         return absl::OkStatus();
     }
 
     std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, bool negate) {
-        const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
-        std::tuple<absl::Status, std::string> result;
-        std::string source;
-        switch (function_type_) {
-            case Utility::FunctionType::GetHdr:
-            {
-                result = Utility::getHeaderValue(headers, arguments);
-                const absl::Status status = std::get<0>(result);
-                source = std::get<1>(result);
-                if (status != absl::OkStatus() || source.length() == 0) {
-                    return std::make_tuple(status, false);
-                }
-                break;
-            }
-            case Utility::FunctionType::Urlp:
-            {
-                result = Utility::getUrlp(headers, arguments);
-                const absl::Status status = std::get<0>(result);
-                source = std::get<1>(result);
-                if (status != absl::OkStatus() || source.length() == 0) {
-                    return std::make_tuple(status, false);
-                }
-                break;
-            }
-            default:
-                break;
+        const std::tuple<absl::Status, std::string> result = dynamic_function_processor_->executeOperation(headers);
+        const absl::Status status = std::get<0>(result);
+        const std::string source = std::get<1>(result);
+
+        if (status != absl::OkStatus()) {
+            return std::make_tuple(status, false);
         }
 
         const bool bool_result = matcher_(source);
@@ -415,6 +388,144 @@ namespace HeaderRewriteFilter {
             return std::make_tuple(absl::InvalidArgumentError("failed to process condition -- " + std::string(e.what())), false);
         }
     }
+
+  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getFunctionArgument(absl::string_view function_expression) {
+    try {
+        auto start = function_expression.find_first_of("(");
+        auto end = function_expression.find_last_of(")");
+        if (end != (function_expression.size()-1)) {
+            return std::make_tuple(absl::InvalidArgumentError("failed to get function argument -- invalid dynamic function syntax"), "");
+        }
+        std::string argument = std::string(function_expression).substr(start+1, end-start-1);
+        return std::make_tuple(absl::OkStatus(), argument);
+    } catch (std::exception& e) {
+        return std::make_tuple(absl::InvalidArgumentError("failed to get function argument"), "");
+    }
+  }
+
+  Utility::FunctionType DynamicFunctionProcessor::getFunctionType(absl::string_view function_expression) {
+    const auto end = function_expression.find_first_of("(");
+    const auto dynamic_function = function_expression.substr(0, end);
+    return Utility::StringToFunctionType(dynamic_function);
+  }
+
+  absl::Status DynamicFunctionProcessor::parseOperation(absl::string_view function_expression) {
+    function_type_ = getFunctionType(function_expression);
+    if (function_type_ == Utility::FunctionType::InvalidFunctionType) {
+        return absl::InvalidArgumentError("invalid function type for dynamic value");
+    }
+    const std::tuple<absl::Status, std::string> get_function_argument_result = getFunctionArgument(function_expression);
+    const absl::Status status = std::get<0>(get_function_argument_result);
+    if (status != absl::OkStatus()) {
+        return status;
+    }
+    function_argument_ = std::get<1>(get_function_argument_result);
+
+    // validate dynamic function arguments
+    const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
+    switch (function_type_) {
+        case Utility::FunctionType::GetHdr:
+        {
+            if (arguments.size() < 1 || arguments.size() > 2) {
+                return absl::InvalidArgumentError("wrong number of arguments to get header function");
+            }
+            break;
+        }
+        case Utility::FunctionType::Urlp:
+        {
+            if (arguments.size() != 1) {
+                return absl::InvalidArgumentError("wrong number of arguments arguments to get urlp function");
+            }
+            break;
+        }
+        default:
+            return absl::InvalidArgumentError("invalid function type for dynamic value function");
+    }
+
+    return absl::OkStatus();
+  }
+
+  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getHeaderValue(Http::RequestOrResponseHeaderMap& headers, absl::string_view key, int position) {
+    try {
+        const Http::LowerCaseString header_key(key);
+        const Envoy::Http::HeaderUtility::GetAllOfHeaderAsStringResult header = Envoy::Http::HeaderUtility::getAllOfHeaderAsString(headers, header_key);
+
+        if (header.result() == absl::nullopt) { // header does not exist
+            return std::make_tuple(absl::OkStatus(), "");
+        }
+        const absl::string_view values_string_view = header.result().value();
+        const auto header_vals = StringUtil::splitToken(values_string_view, ",", false, true);
+        const auto num_header_vals = header_vals.size();
+
+        if (position < 0) {
+            position += num_header_vals;
+        }
+
+        // validate position
+        if ((position < 0) || (position >= num_header_vals)) {
+            return std::make_tuple(absl::InvalidArgumentError("invalid match syntax -- hdr position out of bounds"), "");
+        }
+
+        // get comma-separated value of the header
+        const auto header_val = header_vals.at(position);
+        const std::string source(header_val);
+
+        return std::make_tuple(absl::OkStatus(), source);
+    } catch (std::exception& e) { // should never happen, bounds are checked above
+        return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), "");
+    }
+}
+
+  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param) {
+    try {
+        Http::RequestHeaderMap* request_headers = dynamic_cast<Http::RequestHeaderMap*>(&headers); // can fail if invalid config is provided, ie if response tries to get path
+        if (!request_headers) {
+            return std::make_tuple(absl::InvalidArgumentError("cannot call urlp function on response side"), "");
+        }
+        const auto query_parameters = Http::Utility::parseQueryString(request_headers->Path()[0].value().getStringView());
+        const auto& iter = query_parameters.find(std::string(param));
+        if (iter == query_parameters.end()) { // query param doesn't exist
+            return std::make_tuple(absl::OkStatus(), "");
+        }
+        
+        const std::string source(iter->second);
+        return std::make_tuple(absl::OkStatus(), source);
+    } catch (std::exception& e) { // should never happen, bounds are checked above
+        return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match" + std::string(e.what())), "");
+    }
+}
+
+  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers) {
+    const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
+    std::tuple<absl::Status, std::string> result;
+    std::string source;
+    switch (function_type_) {
+        case Utility::FunctionType::GetHdr:
+        {
+            int position;
+            const absl::string_view header_key = arguments.at(0);
+            if (arguments.size() == 1) {
+                position = -1;
+            } else {
+                position = std::stoi(std::string(arguments.at(1)));
+            }
+            result = getHeaderValue(headers, header_key, position);
+            const absl::Status status = std::get<0>(result);
+            source = std::get<1>(result);
+            return std::make_tuple(absl::OkStatus(), source);
+        }
+        case Utility::FunctionType::Urlp:
+        {
+            result = getUrlp(headers, arguments.at(0));
+            const absl::Status status = std::get<0>(result);
+            source = std::get<1>(result);
+            return std::make_tuple(absl::OkStatus(), source);
+        }
+        default:
+            break;
+    }
+    return std::make_tuple(absl::InvalidArgumentError("failed to execute dynamic function -- invalid function type"), "");
+  }
 
 } // namespace HeaderRewriteFilter
 } // namespace HttpFilters

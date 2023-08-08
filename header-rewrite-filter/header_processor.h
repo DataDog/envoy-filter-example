@@ -21,6 +21,25 @@ public:
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
 };
 
+class DynamicFunctionProcessor : public Processor {
+public:
+  DynamicFunctionProcessor() {}
+  virtual ~DynamicFunctionProcessor() {}
+  virtual absl::Status parseOperation(absl::string_view function_expression);
+  std::tuple<absl::Status, std::string> executeOperation(Http::RequestOrResponseHeaderMap& headers);
+
+private:
+  std::tuple<absl::Status, std::string> getFunctionArgument(absl::string_view function_expression);
+  Utility::FunctionType getFunctionType(absl::string_view function_expression);
+  std::tuple<absl::Status, std::string> getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param);
+  std::tuple<absl::Status, std::string> getHeaderValue(Http::RequestOrResponseHeaderMap& headers, absl::string_view key, int position);
+
+  Utility::FunctionType function_type_;
+  std::string function_argument_;
+};
+
+using DynamicFunctionProcessorSharedPtr = std::shared_ptr<DynamicFunctionProcessor>;
+
 class SetBoolProcessor : public Processor {
 public:
   SetBoolProcessor() {}
@@ -30,9 +49,7 @@ public:
 
 private:
   std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
-  Utility::FunctionType function_type_;
-  std::string function_argument_;
-
+  DynamicFunctionProcessorSharedPtr dynamic_function_processor_ = nullptr;
 };
 
 

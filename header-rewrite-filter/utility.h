@@ -79,12 +79,6 @@ bool isOperator(BooleanOperatorType operator_type);
 bool isBinaryOperator(BooleanOperatorType operator_type);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2);
 
-std::tuple<absl::Status, std::string> GetFunctionArgument(absl::string_view function_expression);
-FunctionType GetFunctionType(absl::string_view function_expression);
-
-std::tuple<absl::Status, std::string> getHeaderValue(Http::RequestOrResponseHeaderMap& headers, std::vector<absl::string_view> arguments);
-std::tuple<absl::Status, std::string> getUrlp(Http::RequestOrResponseHeaderMap& headers, std::vector<absl::string_view> arguments);
-
 bool requiresArgument(MatchType match_type);
 
 } // namespace Utility
