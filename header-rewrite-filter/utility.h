@@ -27,7 +27,6 @@ constexpr absl::string_view IF_KEYWORD = "if";
 
 constexpr absl::string_view HTTP_REQUEST = "http-request";
 constexpr absl::string_view HTTP_RESPONSE = "http-response";
-constexpr absl::string_view HTTP_REQUEST_RESPONSE = "http";
 
 constexpr absl::string_view MATCH_TYPE_EXACT = "str";
 constexpr absl::string_view MATCH_TYPE_PREFIX = "beg";

@@ -127,31 +127,32 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 
 TEST_F(ProcessorTest, SetBoolProcessorTest) {
     std::vector<absl::string_view> true_match_test_cases = {
-        "http set-bool mock_bool hdr(mock_header1) -m str mock_value3", // exact, hdr 1 arg
-        "http set-bool mock_bool hdr(mock_header1,-1) -m str mock_value3", // exact, hdr 2 arg
-        "http set-bool mock_bool hdr(mock_header1,0) -m str mock_value1", // exact, hdr 2 arg
-        "http set-bool mock_bool hdr(mock_header1,-3) -m str mock_value1", // exact, hdr 2 arg
-        "http set-bool mock_bool hdr(mock_header2) -m beg mo", // prefix
-        "http set-bool mock_bool urlp(param1) -m beg so", // prefix, urlp
-        "http set-bool mock_bool hdr(mock_header2) -m sub lue", // substring
-        "http set-bool mock_bool hdr(mock_header2) -m found", // found, hdr
-        "http set-bool mock_bool urlp(param2) -m found" // found, urlp
+        "http-request set-bool mock_bool hdr(mock_header1) -m str mock_value3", // exact, hdr 1 arg
+        "http-request set-bool mock_bool hdr(mock_header1,-1) -m str mock_value3", // exact, hdr 2 arg
+        "http-request set-bool mock_bool hdr(mock_header1,0) -m str mock_value1", // exact, hdr 2 arg
+        "http-request set-bool mock_bool hdr(mock_header1,-3) -m str mock_value1", // exact, hdr 2 arg
+        "http-request set-bool mock_bool hdr(mock_header2) -m beg mo", // prefix
+        "http-request set-bool mock_bool urlp(param1) -m beg so", // prefix, urlp
+        "http-request set-bool mock_bool hdr(mock_header2) -m sub lue", // substring
+        "http-request set-bool mock_bool hdr(mock_header2) -m found", // found, hdr
+        "http-request set-bool mock_bool urlp(param2) -m found" // found, urlp
     };
 
     std::vector<absl::string_view> false_match_test_cases = {
-        "http set-bool mock_bool hdr(mock_header2) -m str no-match", // exact
-        "http set-bool mock_bool hdr(mock_header1) -m beg tch", // prefix
-        "http set-bool mock_bool hdr(mock_header2) -m sub not_a_substring", // substring
-        "http set-bool mock_bool hdr(unknown_header) -m found" // found
+        "http-request set-bool mock_bool hdr(mock_header2) -m str no-match", // exact
+        "http-request set-bool mock_bool hdr(mock_header1) -m beg tch", // prefix
+        "http-request set-bool mock_bool hdr(mock_header2) -m sub not_a_substring", // substring
+        "http-request set-bool mock_bool hdr(unknown_header) -m found" // found
     };
 
     std::vector<absl::string_view> negative_test_cases = {
-        "http set-bool mock_bool hdr(mock_header1) -m str", // missing argument
-        "http set-bool mock_bool hdr(mock_header1) -m", // missing argument
-        "http set-bool mock_bool urlp(param1) -m str arg extra_arg", // extra arg
-        "http set-bool mock_bool urlp(param1) -m found extra_arg", // extra arg
-        "http set-bool mock_bool urlp(param2) str matches", // missing -m flag
-        "http set-bool mock_bool urlp(param2 -m found)" // invalid syntax
+        "http-request set-bool mock_bool hdr(mock_header1) -m str", // missing argument
+        "http-request set-bool mock_bool hdr(mock_header1) -m", // missing argument
+        "http-response set-bool mock_bool urlp(param1) -m beg so", // urlp on response side
+        "http-request set-bool mock_bool urlp(param1) -m str arg extra_arg", // extra arg
+        "http-request set-bool mock_bool urlp(param1) -m found extra_arg", // extra arg
+        "http-request set-bool mock_bool urlp(param2) str matches", // missing -m flag
+        "http-request set-bool mock_bool urlp(param2 -m found)" // invalid syntax
     };
 
     for (const auto operation_expression : true_match_test_cases) {
