@@ -46,6 +46,16 @@ BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator)
     }
 }
 
+FunctionType StringToFunctionType(absl::string_view function) {
+    if (function.compare(DYNAMIC_VALUE_HDR) == 0) {
+        return FunctionType::GetHdr;
+    } else if (function.compare(DYNAMIC_VALUE_URL_PARAM) == 0) {
+        return FunctionType::Urlp;
+    } else {
+        return FunctionType::InvalidFunctionType;
+    }
+}
+
 bool isOperator(BooleanOperatorType operator_type) {
     return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or || operator_type == BooleanOperatorType::Not);
 }
