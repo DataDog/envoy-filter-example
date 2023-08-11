@@ -9,6 +9,8 @@ namespace Extensions {
 namespace HttpFilters {
 namespace HeaderRewriteFilter {
 
+using ::testing::ReturnRef;
+
 class ProcessorTest : public ::testing::Test {
 protected:
     void SetUp() override { }
@@ -20,6 +22,7 @@ using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::str
 // Note: processors assume that the first two arguments are validated (these arguments are validated by the filter)
 
 TEST_F(ProcessorTest, SetHeaderProcessorTest) {
+    Envoy::StreamInfo::MockStreamInfo* stream_info;
     std::vector<absl::string_view> positive_test_cases = {
         "http-request set-header mock_header mock_value", // can set one value
         "http-request set-header mock_header another_mock_value" // replaces already existing value
@@ -33,19 +36,19 @@ TEST_F(ProcessorTest, SetHeaderProcessorTest) {
 
     for (const auto operation_expression : positive_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetHeaderProcessor set_header_processor = SetHeaderProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetHeaderProcessor set_header_processor = SetHeaderProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = set_header_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
-        status = set_header_processor.executeOperation(headers);
+        status = set_header_processor.executeOperation(headers, stream_info);
         EXPECT_TRUE(status == absl::OkStatus());
         EXPECT_EQ(tokens.at(3), headers.get(Http::LowerCaseString(tokens.at(2)))[0]->value().getStringView());
     }
 
     for (const auto operation_expression : negative_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetHeaderProcessor set_header_processor = SetHeaderProcessor(nullptr, nullptr, true);
+        SetHeaderProcessor set_header_processor = SetHeaderProcessor(nullptr, true);
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = set_header_processor.parseOperation(tokens, (tokens.begin() + 2));
@@ -54,7 +57,8 @@ TEST_F(ProcessorTest, SetHeaderProcessorTest) {
 }
 
 TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
-    AppendHeaderProcessor append_header_processor = AppendHeaderProcessor(nullptr, nullptr, true);
+    Envoy::StreamInfo::MockStreamInfo* stream_info;
+    AppendHeaderProcessor append_header_processor = AppendHeaderProcessor(nullptr, true);
     Http::TestRequestHeaderMapImpl headers{
         {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
 
@@ -62,7 +66,7 @@ TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
     std::vector<absl::string_view> operation_expression({"http-request", "append-header", "mock_header", "mock_value"});
     absl::Status status = append_header_processor.parseOperation(operation_expression, (operation_expression.begin() + 2));
     EXPECT_TRUE(status == absl::OkStatus());
-    status = append_header_processor.executeOperation(headers);
+    status = append_header_processor.executeOperation(headers, stream_info);
     EXPECT_TRUE(status == absl::OkStatus());
     EXPECT_EQ("mock_value", headers.get(Http::LowerCaseString("mock_header"))[0]->value().getStringView());
 
@@ -70,7 +74,7 @@ TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
     operation_expression = {"http-request", "append-header", "mock_key", "mock_val1", "mock_val2"};
     status = append_header_processor.parseOperation(operation_expression, (operation_expression.begin() + 2));
     EXPECT_TRUE(status == absl::OkStatus());
-    status = append_header_processor.executeOperation(headers);
+    status = append_header_processor.executeOperation(headers, stream_info);
     EXPECT_TRUE(status == absl::OkStatus());
     EXPECT_EQ("mock_val1,mock_val2", headers.get(Http::LowerCaseString("mock_key"))[0]->value().getStringView());
 
@@ -81,7 +85,7 @@ TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
 
     for (const auto operation_expression : negative_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        AppendHeaderProcessor append_header_processor = AppendHeaderProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        AppendHeaderProcessor append_header_processor = AppendHeaderProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = append_header_processor.parseOperation(tokens, (tokens.begin() + 2));
@@ -90,6 +94,7 @@ TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
 }
 
 TEST_F(ProcessorTest, SetPathProcessorTest) {
+    Envoy::StreamInfo::MockStreamInfo* stream_info;
     std::vector<absl::string_view> positive_test_cases = {
         // correctly updates path and preserves query string
         "http-request set-path mock_path",
@@ -104,12 +109,12 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 
     for (const auto operation_expression : positive_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetPathProcessor set_path_processor = SetPathProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetPathProcessor set_path_processor = SetPathProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param=1"}, {":authority", "host"}};
         absl::Status status = set_path_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
-        status = set_path_processor.executeOperation(headers);
+        status = set_path_processor.executeOperation(headers, stream_info);
         EXPECT_TRUE(status == absl::OkStatus());
         std::string expected_path = std::string(tokens.at(2)) + "?param=1";
         EXPECT_EQ(expected_path, headers.get(Http::LowerCaseString(":path"))[0]->value().getStringView());
@@ -117,7 +122,7 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 
     for (const auto operation_expression : negative_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetPathProcessor set_path_processor = SetPathProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetPathProcessor set_path_processor = SetPathProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}};
         absl::Status status = set_path_processor.parseOperation(tokens, (tokens.begin() + 2));
@@ -126,6 +131,8 @@ TEST_F(ProcessorTest, SetPathProcessorTest) {
 }
 
 TEST_F(ProcessorTest, SetBoolProcessorTest) {
+    Envoy::StreamInfo::MockStreamInfo* stream_info;
+
     std::vector<absl::string_view> true_match_test_cases = {
         "http-request set-bool mock_bool %[hdr(mock_header1)] -m str mock_value3", // exact, hdr 1 arg
         "http-request set-bool mock_bool %[hdr(mock_header1,-1)] -m str mock_value3", // exact, hdr 2 arg
@@ -157,13 +164,13 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
 
     for (const auto operation_expression : true_match_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param1=something&param2=2"}, {":authority", "host"}, {"mock_header1", "mock_value1,mock_value2,mock_value3"}, {"mock_header2", "mock_value"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
         EXPECT_EQ(status.message(), "");
-        std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(headers, false);
+        std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(headers, stream_info, false);
         status = std::get<0>(result);
         bool bool_result = std::get<1>(result);
         EXPECT_TRUE(status == absl::OkStatus());
@@ -172,13 +179,13 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
 
     for (const auto operation_expression : false_match_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param1=1,param2=2"}, {":authority", "host"}, {"mock_header1", "mock_value1,mock_value2,mock_value3"}, {"mock_header2", "mock_value"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
         EXPECT_EQ(status.message(), "");
-        std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(headers, false);
+        std::tuple<absl::Status, bool> result = set_bool_processor.executeOperation(headers, stream_info, false);
         status = std::get<0>(result);
         bool bool_result = std::get<1>(result);
         EXPECT_TRUE(status == absl::OkStatus());
@@ -187,7 +194,7 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
 
     for (const auto operation_expression : negative_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, nullptr, (tokens.at(0) == "http-request"));
+        SetBoolProcessor set_bool_processor = SetBoolProcessor(nullptr, (tokens.at(0) == "http-request"));
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param1=1,param2=2"}, {":authority", "host"}, {"mock_header1", "mock_value1,mock_value2,mock_value3"}, {"mock_header2", "mock_value"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
@@ -196,12 +203,13 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
 }
 
 TEST_F(ProcessorTest, ConditionProcessorTest) {
+    Envoy::StreamInfo::MockStreamInfo* stream_info;
     Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/"}, {":authority", "host"}, {"mock_header", "mock_value"}};
             
     SetBoolProcessorMapSharedPtr mock_bool_processors = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
-    SetBoolProcessorSharedPtr mock_true_bool_processor = std::make_shared<SetBoolProcessor>(mock_bool_processors, nullptr, true);
-    SetBoolProcessorSharedPtr mock_false_bool_processor = std::make_shared<SetBoolProcessor>(mock_bool_processors, nullptr, true);
+    SetBoolProcessorSharedPtr mock_true_bool_processor = std::make_shared<SetBoolProcessor>(mock_bool_processors, true);
+    SetBoolProcessorSharedPtr mock_false_bool_processor = std::make_shared<SetBoolProcessor>(mock_bool_processors, true);
 
     // set up mock bool processors
     std::vector<absl::string_view> operation_expression = {"http", "set-bool", "mock_true_bool", "%[hdr(mock_header)]", "-m", "str", "mock_value"};
@@ -242,10 +250,10 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
 
     for (const auto operation_expression : true_condition_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, nullptr, true);
+        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, true);
         absl::Status status = condition_processor.parseOperation(tokens, tokens.begin());
         EXPECT_TRUE(status == absl::OkStatus());
-        std::tuple<absl::Status, bool> result = condition_processor.executeOperation(headers);
+        std::tuple<absl::Status, bool> result = condition_processor.executeOperation(headers, stream_info);
         status = std::get<0>(result);
         EXPECT_TRUE(status == absl::OkStatus());
         bool bool_result = std::get<1>(result);
@@ -254,10 +262,10 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
 
     for (const auto operation_expression : false_condition_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, nullptr, true);
+        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, true);
         absl::Status status = condition_processor.parseOperation(tokens, tokens.begin());
         EXPECT_TRUE(status == absl::OkStatus());
-        std::tuple<absl::Status, bool> result = condition_processor.executeOperation(headers);
+        std::tuple<absl::Status, bool> result = condition_processor.executeOperation(headers, stream_info);
         status = std::get<0>(result);
         EXPECT_TRUE(status == absl::OkStatus());
         bool bool_result = std::get<1>(result);
@@ -266,8 +274,59 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
 
     for (const auto operation_expression : invalid_parsing_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
-        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, nullptr, true);
+        ConditionProcessor condition_processor = ConditionProcessor(mock_bool_processors, true);
         absl::Status status = condition_processor.parseOperation(tokens, tokens.begin());
+        EXPECT_TRUE(status.code() == absl::StatusCode::kInvalidArgument);
+    }
+}
+
+TEST_F(ProcessorTest, SetDynamicMetadataTest) {
+    std::vector<absl::string_view> positive_test_cases = {
+        "http-request set-metadata mock_key %[hdr(mock_header,-1)]",
+        "http-request set-metadata mock_key %[urlp(param1)]"
+    };
+
+    std::vector<absl::string_view> negative_parsing_test_cases = {
+        "http-request set-metadata mock_key", // missing argument
+        "http-request set-metadata mock_key %[hdr(mock_header) extra_arg" // extra argument
+    };
+
+    std::vector<absl::string_view> negative_execution_test_cases = {
+        "http-request set-metadata mock_key %[hdr(non_existent_header)]", // nonexistent header
+    };
+
+    Http::TestRequestHeaderMapImpl headers{
+            {":method", "GET"}, {":path", "/?param1=hello"}, {":authority", "host"}, {"mock_header", "mock_value"}};
+    
+    // create mock and set up mock call
+    NiceMock<StreamInfo::MockStreamInfo> stream_info;
+    envoy::config::core::v3::Metadata dynamic_metadata;
+    google::protobuf::Struct filter_metadata = ProtobufWkt::Struct::default_instance();
+    (*dynamic_metadata.mutable_filter_metadata())["envoy.extensions.filters.http.HeaderRewrite"] = filter_metadata;
+    ON_CALL(stream_info, dynamicMetadata()).WillByDefault(ReturnRef(dynamic_metadata));
+    
+    for (const auto operation_expression : positive_test_cases) {
+        std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
+        SetDynamicMetadataProcessor dynamic_metadata_processor = SetDynamicMetadataProcessor(nullptr, tokens.at(0) == "http-request");
+        absl::Status status = dynamic_metadata_processor.parseOperation(tokens, tokens.begin() + 2);
+        EXPECT_TRUE(status == absl::OkStatus());
+        status = dynamic_metadata_processor.executeOperation(headers, &stream_info);
+        EXPECT_TRUE(status == absl::OkStatus());
+    }
+
+    for (const auto operation_expression : negative_parsing_test_cases) {
+        std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
+        SetDynamicMetadataProcessor dynamic_metadata_processor = SetDynamicMetadataProcessor(nullptr, tokens.at(0) == "http-request");
+        absl::Status status = dynamic_metadata_processor.parseOperation(tokens, tokens.begin() + 2);
+        EXPECT_TRUE(status.code() == absl::StatusCode::kInvalidArgument);
+    }
+
+    for (const auto operation_expression : negative_execution_test_cases) {
+        std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
+        SetDynamicMetadataProcessor dynamic_metadata_processor = SetDynamicMetadataProcessor(nullptr, tokens.at(0) == "http-request");
+        absl::Status status = dynamic_metadata_processor.parseOperation(tokens, tokens.begin() + 2);
+        EXPECT_TRUE(status == absl::OkStatus());
+        status = dynamic_metadata_processor.executeOperation(headers, &stream_info);
         EXPECT_TRUE(status.code() == absl::StatusCode::kInvalidArgument);
     }
 }

@@ -147,8 +147,9 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHe
   }
 
   // execute each operation
+  Envoy::StreamInfo::StreamInfo* streamInfo = &decoder_callbacks_->streamInfo();
   for (auto const& processor : request_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, decoder_callbacks_);
+    const absl::Status status = processor->executeOperation(headers, streamInfo);
     if (status != absl::OkStatus()) {
       ENVOY_LOG_MISC(info, "error executing an operation on request side, skipping filter -- " + std::string(status.message()));
       return Http::FilterHeadersStatus::Continue;
@@ -165,8 +166,9 @@ Http::FilterHeadersStatus HttpHeaderRewriteFilter::encodeHeaders(Http::ResponseH
   }
 
   // execute each operation
+  Envoy::StreamInfo::StreamInfo* streamInfo = &encoder_callbacks_->streamInfo();
   for (auto const& processor : response_header_processors_) {
-    const absl::Status status = processor->executeOperation(headers, encoder_callbacks_);
+    const absl::Status status = processor->executeOperation(headers, streamInfo);
     if (status != absl::OkStatus()) {
       ENVOY_LOG_MISC(info, "error executing an operation on response side, skipping filter -- " + std::string(status.message()));
       return Http::FilterHeadersStatus::Continue;

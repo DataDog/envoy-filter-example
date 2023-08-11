@@ -90,11 +90,11 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    std::tuple<absl::Status, bool> HeaderProcessor::evaluateCondition(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
+    std::tuple<absl::Status, bool> HeaderProcessor::evaluateCondition(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
         // call ConditionProcessor executeOperation; if it is null, return true
         ConditionProcessorSharedPtr condition_processor = getConditionProcessor();
         if (condition_processor) {
-            const std::tuple<absl::Status, bool> condition = condition_processor->executeOperation(headers, callbacks);
+            const std::tuple<absl::Status, bool> condition = condition_processor->executeOperation(headers, streamInfo);
             const absl::Status status = std::get<0>(condition);
             if (status != absl::OkStatus()) {
                 return std::make_tuple(status, false);
@@ -106,8 +106,8 @@ namespace HeaderRewriteFilter {
         return std::make_tuple(absl::OkStatus(), true); // no condition present
     }
 
-    absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, callbacks);
+    absl::Status SetHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, streamInfo);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -127,8 +127,8 @@ namespace HeaderRewriteFilter {
     }
 
 
-    absl::Status AppendHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, callbacks);
+    absl::Status AppendHeaderProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, streamInfo);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -178,8 +178,8 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, callbacks);
+    absl::Status SetPathProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, streamInfo);
         const absl::Status status = std::get<0>(condition_result);
         if (status != absl::OkStatus()) {
             return status;
@@ -278,8 +278,8 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
-    std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks, bool negate) {
-        const std::tuple<absl::Status, std::string> result = dynamic_function_processor_->executeOperation(headers, callbacks);
+    std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate) {
+        const std::tuple<absl::Status, std::string> result = dynamic_function_processor_->executeOperation(headers, streamInfo);
         const absl::Status status = std::get<0>(result);
         const std::string source = std::get<1>(result);
 
@@ -337,7 +337,7 @@ namespace HeaderRewriteFilter {
                 }
 
                 // make sure that all the boolean variables being referenced exist in the map
-                auto operand = *(it+1);
+                const auto operand = *(it+1);
                 if (bool_processors_->find(std::string(operand)) == bool_processors_->end()) {
                     return absl::InvalidArgumentError("boolean variable \"" + std::string(operand) + "\" in conditional does not exist");
                 }
@@ -346,7 +346,7 @@ namespace HeaderRewriteFilter {
                 it += 2;
             } else {
                 // make sure that all the boolean variables being referenced exist in the map
-                auto operand = *(it);
+                const auto operand = *(it);
                 if (bool_processors_->find(std::string(operand)) == bool_processors_->end()) {
                     return absl::InvalidArgumentError("boolean variable \"" + std::string(operand) + "\" in conditional does not exist");
                 }
@@ -361,11 +361,11 @@ namespace HeaderRewriteFilter {
     }
 
     // return status and condition result
-    std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
+    std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
         try {
-            SetBoolProcessorSharedPtr bool_processor = bool_processors_->at(std::string(std::get<0>(operands_.at(0))));
+            const SetBoolProcessorSharedPtr first_bool_processor = bool_processors_->at(std::string(std::get<0>(operands_.at(0))));
             // look up the bool in the map, evaluate the value of the bool, and store the result
-            const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(headers, callbacks, std::get<1>(operands_.at(0)));
+            const std::tuple<absl::Status, bool> bool_var_result = first_bool_processor->executeOperation(headers, streamInfo, std::get<1>(operands_.at(0)));
             const absl::Status status = std::get<0>(bool_var_result);
             if (status != absl::OkStatus()) {
                 return std::make_tuple(status, false);
@@ -382,9 +382,9 @@ namespace HeaderRewriteFilter {
 
             // continue evaluating the condition from left to right
             while (operators_it != operators_.end() && operands_it != operands_.end()) {
-                bool_processor = bool_processors_->at(std::string(std::get<0>((*operands_it))));
+                const SetBoolProcessorSharedPtr next_bool_processor = bool_processors_->at(std::string(std::get<0>((*operands_it))));
 
-                const std::tuple<absl::Status, bool> bool_var_result = bool_processor->executeOperation(headers, callbacks, std::get<1>(*operands_it));
+                const std::tuple<absl::Status, bool> bool_var_result = next_bool_processor->executeOperation(headers, streamInfo, std::get<1>(*operands_it));
                 const absl::Status status = std::get<0>(bool_var_result);
                 if (status != absl::OkStatus()) {
                     return std::make_tuple(status, false);
@@ -424,6 +424,10 @@ namespace HeaderRewriteFilter {
   }
 
   absl::Status DynamicFunctionProcessor::parseOperation(absl::string_view function_expression) {
+    if (function_expression.length() < Utility::DYN_FUNCTION_MIN_LENGTH) {
+        return absl::InvalidArgumentError("invalid syntax for dynamic function -- function too short");
+    }
+
     // make sure dynamic function is wrapped in %[]
     if (function_expression.substr(0, 2) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(0, 2) && function_expression.substr(function_expression.size()-1, 1) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(2, 1)) {
         // TODO: treat it as a static value if it's not wrapped in %[]
@@ -517,7 +521,7 @@ namespace HeaderRewriteFilter {
     }
 }
 
-  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
+  std::tuple<absl::Status, std::string> DynamicFunctionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
     const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
     std::tuple<absl::Status, std::string> result;
     std::string source;
@@ -555,22 +559,20 @@ namespace HeaderRewriteFilter {
     }
 
     try {
-        absl::Status status;
-
         metadata_key_ = std::string(*start);
-
-        absl::string_view value = *(start + 1);
+        const absl::string_view value = *(start + 1);
         metadata_value_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
-        status = metadata_value_->parseOperation(value);
-        if (status != absl::OkStatus()) {
-            return status;
+        const absl::Status parse_dynamic_function_status = metadata_value_->parseOperation(value);
+
+        if (parse_dynamic_function_status != absl::OkStatus()) {
+            return parse_dynamic_function_status;
         }
 
         if (start + 2 != operation_expression.end()) {
             if (*(start + 2) == Utility::IF_KEYWORD) { // condition found
-                const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, start+3); // pass everything after the "if"
-                if (status != absl::OkStatus()) {
-                    return status;
+                const absl::Status parse_condition_status = HeaderProcessor::ConditionProcessorSetup(operation_expression, start+3); // pass everything after the "if"
+                if (parse_condition_status != absl::OkStatus()) {
+                    return parse_condition_status;
                 }
             } else {
                 return absl::InvalidArgumentError("third argument to set-metadata must be a condition");
@@ -586,12 +588,12 @@ namespace HeaderRewriteFilter {
     return absl::OkStatus();
   }
 
-  absl::Status SetDynamicMetadataProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Http::StreamFilterCallbacks* callbacks) {
+  absl::Status SetDynamicMetadataProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
     try {
-        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, callbacks);
-        absl::Status status = std::get<0>(condition_result);
-        if (status != absl::OkStatus()) {
-            return status;
+        const std::tuple<absl::Status, bool> condition_result = evaluateCondition(headers, streamInfo);
+        const absl::Status condition_status = std::get<0>(condition_result);
+        if (condition_status != absl::OkStatus()) {
+            return condition_status;
         }
 
         if (!std::get<1>(condition_result)) {
@@ -599,21 +601,22 @@ namespace HeaderRewriteFilter {
         }
 
         // get dynamic value to set
-        std::tuple<absl::Status, std::string> result = metadata_value_->executeOperation(headers, callbacks);
-        status = std::get<0>(result);
-        const std::string value = std::get<1>(result);
-        if (status != absl::OkStatus() || value.length() == 0) {
-            return absl::InvalidArgumentError("failed to get dynamic value to set metadata " + std::string(status.message()));
+        const std::tuple<absl::Status, std::string> metadata_value_result = metadata_value_->executeOperation(headers, streamInfo);
+        const absl::Status metadata_value_status = std::get<0>(metadata_value_result);
+        const std::string value = std::get<1>(metadata_value_result);
+        if (metadata_value_status != absl::OkStatus()) {
+            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- " + std::string(metadata_value_status.message()));
+        }
+        if (value.length() == 0) {
+            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- no value");
         }
 
-        // make sure callbacks is not null
-        if (!callbacks) {
-            return absl::InvalidArgumentError("failed to access callbacks " + std::string(status.message()));
+        if (!streamInfo) {
+            return absl::InvalidArgumentError("streamInfo is null");
         }
 
         // set metadata
-        envoy::config::core::v3::Metadata& dynamic_metadata =
-        callbacks->streamInfo().dynamicMetadata();
+        envoy::config::core::v3::Metadata& dynamic_metadata = streamInfo->dynamicMetadata();
         ProtobufWkt::Struct metadata( // get metadata for header rewrite filter
             (*dynamic_metadata.mutable_filter_metadata())[std::string(Utility::HEADER_REWRITE_FILTER_NAME)]);
         auto& fields = *metadata.mutable_fields();
@@ -626,7 +629,7 @@ namespace HeaderRewriteFilter {
         }
  
         fields.insert({metadata_key_, val});
-        callbacks->streamInfo().setDynamicMetadata(std::string(Utility::HEADER_REWRITE_FILTER_NAME), metadata);
+        streamInfo->setDynamicMetadata(std::string(Utility::HEADER_REWRITE_FILTER_NAME), metadata);
         
         return absl::OkStatus();
     } catch (std::exception& e) {

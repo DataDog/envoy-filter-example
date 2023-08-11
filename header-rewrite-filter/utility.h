@@ -20,6 +20,7 @@ constexpr uint8_t APPEND_HEADER_MIN_NUM_ARGUMENTS = 4;
 constexpr uint8_t SET_DYN_METADATA_MIN_NUM_ARGUMENTS = 4;
 constexpr uint8_t SET_PATH_MIN_NUM_ARGUMENTS = 3;
 constexpr uint8_t SET_BOOL_MIN_NUM_ARGUMENTS = 6;
+constexpr uint8_t DYN_FUNCTION_MIN_LENGTH = 3;
 
 constexpr absl::string_view DYNAMIC_FUNCTION_DELIMITER = "%[]";
 
