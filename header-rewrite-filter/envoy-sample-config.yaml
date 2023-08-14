@@ -46,14 +46,16 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite
               key: header-processing
               val: |
-                  http-request set-bool true_bool hdr(mock_header,-1) -m str mock_val
-                  http-response set-bool false_bool hdr(transfer-encoding) -m sub not_chunked
-                  http-request set-bool another_true_bool urlp(mock_param) -m found
+                  http-request set-bool true_bool %[hdr(mock_header,-1)] -m str mock_val
+                  http-response set-bool false_bool %[hdr(transfer-encoding)] -m sub not_chunked
+                  http-request set-bool another_true_bool %[urlp(mock_param)] -m found
                   http-request set-path mockpath
                   http-request append-header mock_request_hdr another_mock_val if another_true_bool
                   http-request set-header mock_header mock_val
                   http-request set-header mock_request_hdr mock_val if true_bool
                   http-response set-header mock_response_hdr mock_val if not false_bool
+                  http-request set-metadata mock_key %[hdr(mock_header,-1)] if true_bool
+                  http-request set-metadata mock_key %[urlp(param1)]
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

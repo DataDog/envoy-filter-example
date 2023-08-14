@@ -12,16 +12,23 @@ namespace HttpFilters {
 namespace HeaderRewriteFilter {
 namespace Utility {
 
+constexpr absl::string_view HEADER_REWRITE_FILTER_NAME = "envoy.extensions.filters.http.HeaderRewrite";
+
 constexpr uint8_t MIN_NUM_ARGUMENTS = 2;
 constexpr uint8_t SET_HEADER_MIN_NUM_ARGUMENTS = 4;
 constexpr uint8_t APPEND_HEADER_MIN_NUM_ARGUMENTS = 4;
+constexpr uint8_t SET_DYN_METADATA_MIN_NUM_ARGUMENTS = 4;
 constexpr uint8_t SET_PATH_MIN_NUM_ARGUMENTS = 3;
 constexpr uint8_t SET_BOOL_MIN_NUM_ARGUMENTS = 6;
+constexpr uint8_t DYN_FUNCTION_MIN_LENGTH = 3;
+
+constexpr absl::string_view DYNAMIC_FUNCTION_DELIMITER = "%[]";
 
 constexpr absl::string_view OPERATION_SET_HEADER = "set-header";
 constexpr absl::string_view OPERATION_APPEND_HEADER = "append-header";
 constexpr absl::string_view OPERATION_SET_PATH = "set-path";
 constexpr absl::string_view OPERATION_SET_BOOL = "set-bool";
+constexpr absl::string_view OPERATION_SET_DYN_METADATA = "set-metadata";
 
 constexpr absl::string_view IF_KEYWORD = "if";
 
@@ -45,6 +52,7 @@ enum class OperationType : int {
   AppendHeader,
   SetPath,
   SetBool,
+  SetDynMetadata,
   InvalidOperation,
 };
 

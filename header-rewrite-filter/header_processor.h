@@ -14,19 +14,27 @@ namespace Extensions {
 namespace HttpFilters {
 namespace HeaderRewriteFilter {
 
+class SetBoolProcessor;
+using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
+using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
+
 class Processor {
 public:
-  Processor() {}
+  Processor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : bool_processors_(bool_processors), is_request_(isRequest)  { }
   virtual ~Processor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
+
+protected:
+  SetBoolProcessorMapSharedPtr bool_processors_;
+  const bool is_request_; // header rewrite filter has already verified that the operation is always either http-request or http-response
 };
 
 class DynamicFunctionProcessor : public Processor {
 public:
-  DynamicFunctionProcessor() {}
+  DynamicFunctionProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : Processor(bool_processors, isRequest) {}
   virtual ~DynamicFunctionProcessor() {}
-  virtual absl::Status parseOperation(absl::string_view function_expression, const bool isRequest);
-  std::tuple<absl::Status, std::string> executeOperation(Http::RequestOrResponseHeaderMap& headers);
+  virtual absl::Status parseOperation(absl::string_view function_expression);
+  std::tuple<absl::Status, std::string> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 
 private:
   std::tuple<absl::Status, std::string> getFunctionArgument(absl::string_view function_expression);
@@ -42,26 +50,22 @@ using DynamicFunctionProcessorSharedPtr = std::shared_ptr<DynamicFunctionProcess
 
 class SetBoolProcessor : public Processor {
 public:
-  SetBoolProcessor() {}
+  SetBoolProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : Processor(bool_processors, isRequest) {}
   virtual ~SetBoolProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, bool negate);  // return status and bool result
+  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate); // return status and bool result
 
 private:
   std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
   DynamicFunctionProcessorSharedPtr dynamic_function_processor_ = nullptr;
 };
 
-
-using SetBoolProcessorSharedPtr = std::shared_ptr<SetBoolProcessor>;
-using SetBoolProcessorMapSharedPtr = std::shared_ptr<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>;
-
 class ConditionProcessor : public Processor {
 public:
-  ConditionProcessor() {}
+  ConditionProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : Processor(bool_processors, isRequest) {}
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors); // return status and condition result
+  virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo); // return status and condition result
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;
@@ -72,10 +76,10 @@ using ConditionProcessorSharedPtr = std::shared_ptr<ConditionProcessor>;
 
 class HeaderProcessor : public Processor {
 public:
-  HeaderProcessor() {}
+  HeaderProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : Processor(bool_processors, isRequest) {}
   virtual ~HeaderProcessor() {}
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors) { return absl::OkStatus(); }
-  virtual std::tuple<absl::Status, bool> evaluateCondition(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors); // return status and condition result
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) { return absl::OkStatus(); }
+  virtual std::tuple<absl::Status, bool> evaluateCondition(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo); // return status and condition result
   void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
   ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }
 
@@ -86,10 +90,10 @@ protected:
 
 class SetHeaderProcessor : public HeaderProcessor {
 public:
-  SetHeaderProcessor() {}
+  SetHeaderProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : HeaderProcessor(bool_processors, isRequest) {}
   virtual ~SetHeaderProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 private:
   // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
   const absl::string_view getKey() const { return header_key_; }
@@ -104,10 +108,11 @@ private:
 
 class AppendHeaderProcessor : public HeaderProcessor {
 public:
-  AppendHeaderProcessor() {}
+  AppendHeaderProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : HeaderProcessor(bool_processors, isRequest) {}
   virtual ~AppendHeaderProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
+  
 private:
   // Note: the values returned by these functions must not outlive the AppendHeaderProcessor object
   const absl::string_view getKey() const { return header_key_; }
@@ -123,16 +128,30 @@ private:
 // Note: path being set here includes the query string
 class SetPathProcessor : public HeaderProcessor {
 public:
-  SetPathProcessor() {}
+  SetPathProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : HeaderProcessor(bool_processors, isRequest) {}
   virtual ~SetPathProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, SetBoolProcessorMapSharedPtr bool_processors);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 
 private:
+  // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
   const std::string& getPath() const { return request_path_; }
   void setPath(absl::string_view path) { request_path_ = std::string(path); }
 
   std::string request_path_; // path to set
+};
+
+class SetDynamicMetadataProcessor : public HeaderProcessor {
+public:
+  SetDynamicMetadataProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : HeaderProcessor(bool_processors, isRequest) {}
+  virtual ~SetDynamicMetadataProcessor() {}
+  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
+  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
+
+private:
+  // Note: the values returned by these functions must not outlive the SetDynamicMetadataProcessor object
+  std::string metadata_key_;
+  DynamicFunctionProcessorSharedPtr metadata_value_ = nullptr;
 };
 
 } // namespace HeaderRewriteFilter

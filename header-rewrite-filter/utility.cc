@@ -15,6 +15,8 @@ namespace Utility {
         return OperationType::SetPath;
     } else if (operation == OPERATION_SET_BOOL) {
         return OperationType::SetBool;
+    } else if (operation == OPERATION_SET_DYN_METADATA) {
+        return OperationType::SetDynMetadata;
     } else {
         return OperationType::InvalidOperation;
     }
