@@ -53,6 +53,7 @@ envoy_cc_library(
         ":pkg_cc_proto",
         ":header_rewrite_utils_lib",
         "@envoy//source/common/common:utility_lib",
+        "@envoy//source/common/config:metadata_lib",
         "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/common:minimal_logger_lib",
         "@envoy//source/extensions/filters/http/common:pass_through_filter_lib",
@@ -88,6 +89,7 @@ envoy_cc_test(
     repository = "@envoy",
     deps = [
         ":header_rewrite_processor_lib",
-         "@envoy//test/integration:http_integration_lib",
+        "@envoy//test/integration:http_integration_lib",
+        "@envoy//source/common/config:metadata_lib"
     ]
 )

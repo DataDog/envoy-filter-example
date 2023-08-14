@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "header_processor.h"
 #include "source/common/common/utility.h"
+#include "source/common/config/metadata.h"
 #include "source/extensions/filters/http/common/pass_through_filter.h"
 #include "test/integration/http_integration.h"
 
@@ -10,6 +12,7 @@ namespace HttpFilters {
 namespace HeaderRewriteFilter {
 
 using ::testing::ReturnRef;
+using ::testing::Invoke;
 
 class ProcessorTest : public ::testing::Test {
 protected:
@@ -290,9 +293,10 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
 }
 
 TEST_F(ProcessorTest, DynamicMetadataTest) {
-    std::vector<std::tuple<absl::string_view, absl::string_view>> positive_test_cases = {
-        std::make_tuple("http-request set-metadata mock_key %[hdr(mock_header,-1)]", "http-request set-header metadata_value %[metadata(mock_key)]"),
-        std::make_tuple("http-request set-metadata another_mock_key %[urlp(param1)]", "http-request set-header another_mock_header %[metadata(another_mock_key)]")
+    std::vector<std::tuple<absl::string_view, absl::string_view, absl::string_view>> positive_test_cases = {
+        // values in tuple: (operation to set metadata, operation to set header based on metadata, expected value of header for test case)
+        std::make_tuple("http-request set-metadata mock_key %[hdr(mock_header,-1)]", "http-request set-header metadata_value %[metadata(mock_key)]", "mock_value"),
+        std::make_tuple("http-request set-metadata another_mock_key %[urlp(param1)]", "http-request set-header metadata_value %[metadata(another_mock_key)]", "hello")
     };
 
     std::vector<absl::string_view> negative_parsing_test_cases = {
@@ -308,12 +312,14 @@ TEST_F(ProcessorTest, DynamicMetadataTest) {
     Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param1=hello"}, {":authority", "host"}, {"mock_header", "mock_value"}};
     
-    // create mock and set up mock call
+    // create mock and set up mock calls
     NiceMock<StreamInfo::MockStreamInfo> stream_info;
     envoy::config::core::v3::Metadata dynamic_metadata;
-    google::protobuf::Struct filter_metadata = ProtobufWkt::Struct::default_instance();
-    (*dynamic_metadata.mutable_filter_metadata())["envoy.extensions.filters.http.HeaderRewrite"] = filter_metadata;
     ON_CALL(stream_info, dynamicMetadata()).WillByDefault(ReturnRef(dynamic_metadata));
+    ON_CALL(Const(stream_info), dynamicMetadata()).WillByDefault(ReturnRef(dynamic_metadata));
+    ON_CALL(stream_info, setDynamicMetadata(_,_)).WillByDefault(Invoke([&dynamic_metadata](const std::string& name, const ProtobufWkt::Struct& value) {
+        return (*dynamic_metadata.mutable_filter_metadata())[name].MergeFrom(value);
+    }));
     
     for (const auto operation_expression : positive_test_cases) {
         std::vector<absl::string_view> tokens = StringUtil::splitToken(std::get<0>(operation_expression), " ", false, true);
@@ -330,6 +336,13 @@ TEST_F(ProcessorTest, DynamicMetadataTest) {
         EXPECT_TRUE(status == absl::OkStatus());
         status = set_header_processor.executeOperation(headers, &stream_info);
         EXPECT_TRUE(status == absl::OkStatus());
+
+        // confirm that the correct metadata value is set
+        std::string key(tokens.at(2));
+        std::string expected_value(std::get<2>(operation_expression));
+        std::vector<std::string> path = {key, key};
+        EXPECT_EQ(expected_value, Envoy::Config::Metadata::metadataValue(&dynamic_metadata, "envoy.extensions.filters.http.HeaderRewrite", path).string_value());
+        EXPECT_EQ(expected_value, headers.get(Http::LowerCaseString(std::string(verify_tokens.at(2))))[0]->value().getStringView());
     }
 
     for (const auto operation_expression : negative_parsing_test_cases) {
