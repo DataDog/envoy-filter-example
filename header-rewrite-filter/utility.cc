@@ -53,6 +53,8 @@ FunctionType StringToFunctionType(absl::string_view function) {
         return FunctionType::GetHdr;
     } else if (function.compare(DYNAMIC_VALUE_URL_PARAM) == 0) {
         return FunctionType::Urlp;
+    } else if (function.compare(DYNAMIC_VALUE_METADATA) == 0) {
+        return FunctionType::GetMetadata;
     } else {
         return FunctionType::InvalidFunctionType;
     }

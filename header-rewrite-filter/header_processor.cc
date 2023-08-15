@@ -493,19 +493,20 @@ namespace HeaderRewriteFilter {
     const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
     switch (function_type_) {
         case Utility::FunctionType::GetHdr:
-        {
             if (arguments.size() < 1 || arguments.size() > 2) {
-                return absl::InvalidArgumentError("wrong number of arguments to get header function");
+                return absl::InvalidArgumentError("wrong number of arguments to get header function, expected 1 or 2 but got " + std::to_string(arguments.size()));
             }
             break;
-        }
         case Utility::FunctionType::Urlp:
-        {
             if (arguments.size() != 1) {
-                return absl::InvalidArgumentError("wrong number of arguments arguments to get urlp function");
+                return absl::InvalidArgumentError("wrong number of arguments to urlp function, expected 1 but got " + std::to_string(arguments.size()));
             }
             break;
-        }
+        case Utility::FunctionType::GetMetadata:
+            if (arguments.size() != 1) {
+                return absl::InvalidArgumentError("wrong number of arguments to get metadata function, expected 1 but got "  + std::to_string(arguments.size()));
+            }
+            break;
         default:
             return absl::InvalidArgumentError("invalid function type for dynamic value function");
     }
@@ -544,6 +545,31 @@ namespace HeaderRewriteFilter {
     }
 }
 
+std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetadata(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key) {
+    try {
+        if (!streamInfo) {
+            return std::make_tuple(absl::InvalidArgumentError("Stream info is null"), "");
+        }
+
+        const auto& request_metadata = streamInfo->dynamicMetadata();
+        const auto& filter_metadata = request_metadata.filter_metadata();
+        const auto filter_it = filter_metadata.find(std::string(Utility::HEADER_REWRITE_FILTER_NAME));
+        if (filter_it == filter_metadata.end()) {
+            return std::make_tuple(absl::InvalidArgumentError("Failed to find metadata for header rewrite filter"), "");
+        }
+        const auto data = filter_it->second;
+        const auto& data_value = data.fields();
+        const auto value_it = data_value.find(std::string(key));
+        if (value_it == data_value.end()) { // metadata doesn't exist
+            return std::make_tuple(absl::OkStatus(), "");
+        }
+        const auto value = value_it->second.string_value();
+        return std::make_tuple(absl::OkStatus(), std::move(value));
+    } catch (std::exception& e) {
+        return std::make_tuple(absl::InvalidArgumentError("failed to fetch metadata -- " + std::string(e.what())), "");
+    }
+}
+
   std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param) {
     try {
         Http::RequestHeaderMap* request_headers = dynamic_cast<Http::RequestHeaderMap*>(&headers); // can fail if invalid config is provided, ie if response tries to get path
@@ -565,34 +591,24 @@ namespace HeaderRewriteFilter {
 
   std::tuple<absl::Status, std::string> DynamicFunctionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
     const auto arguments = StringUtil::splitToken(function_argument_, ",", false, true);
-    std::tuple<absl::Status, std::string> result;
-    std::string source;
     switch (function_type_) {
         case Utility::FunctionType::GetHdr:
         {
-            int position;
+            const int position = (arguments.size() == 1) ? -1 : std::stoi(std::string(arguments.at(1))); // get last value if position not specified
             const absl::string_view header_key = arguments.at(0);
-            if (arguments.size() == 1) {
-                position = -1;
-            } else {
-                position = std::stoi(std::string(arguments.at(1)));
-            }
-            result = getHeaderValue(headers, header_key, position);
-            const absl::Status status = std::get<0>(result);
-            source = std::get<1>(result);
-            return std::make_tuple(absl::OkStatus(), source);
+            return getHeaderValue(headers, header_key, position);
         }
         case Utility::FunctionType::Urlp:
         {
-            result = getUrlp(headers, arguments.at(0));
-            const absl::Status status = std::get<0>(result);
-            source = std::get<1>(result);
-            return std::make_tuple(absl::OkStatus(), source);
+            return getUrlp(headers, arguments.at(0));
+        }
+        case Utility::FunctionType::GetMetadata:
+        {   
+            return getDynamicMetadata(headers, streamInfo, function_argument_);
         }
         case Utility::FunctionType::Static:
         {
-            source = function_argument_;
-            return std::make_tuple(absl::OkStatus(), source);
+            return std::make_tuple(absl::OkStatus(), function_argument_);
         }
         default:
             break;

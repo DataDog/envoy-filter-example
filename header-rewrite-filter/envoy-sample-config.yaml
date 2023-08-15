@@ -56,6 +56,10 @@ static_resources:
                   http-response set-header mock_response_hdr mock_val if not false_bool
                   http-request set-metadata mock_key %[hdr(mock_header,-1)] if true_bool
                   http-request set-metadata mock_key %[urlp(param1)]
+                  http-request set-header metadata_header %[metadata(mock_key)]
+                  http-request set-header mock_key value_to_be_fetched
+                  http-request set-metadata mock_key %[hdr(mock_key,-1)]
+                  http-request set-header metadata_value %[metadata(mock_key)]
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
