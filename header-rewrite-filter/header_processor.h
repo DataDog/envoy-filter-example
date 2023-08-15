@@ -95,15 +95,8 @@ public:
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 private:
-  // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
-  const absl::string_view getKey() const { return header_key_; }
-  const std::string getVal() const { return header_val_; }
-
-  void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVal(absl::string_view val) { header_val_ = std::string(val); }
-
-  std::string header_key_; // header key to set
-  std::string header_val_; // header value to set
+  DynamicFunctionProcessorSharedPtr header_key_ = nullptr; // header key to set
+  DynamicFunctionProcessorSharedPtr header_val_ = nullptr; // header value to set
 };
 
 class AppendHeaderProcessor : public HeaderProcessor {
@@ -114,15 +107,8 @@ public:
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
   
 private:
-  // Note: the values returned by these functions must not outlive the AppendHeaderProcessor object
-  const absl::string_view getKey() const { return header_key_; }
-  const std::vector<std::string>& getVals() const { return header_vals_; }
-
-  void setKey(absl::string_view key) { header_key_ = std::string(key); }
-  void setVals(std::vector<std::string> vals) { header_vals_ = vals; }
-
-  std::string header_key_; // header key to set
-  std::vector<std::string> header_vals_; // header values to set
+  DynamicFunctionProcessorSharedPtr header_key_ = nullptr; // header key to set
+  std::vector<DynamicFunctionProcessorSharedPtr> header_vals_; // header values to append
 };
 
 // Note: path being set here includes the query string
@@ -134,11 +120,7 @@ public:
   virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 
 private:
-  // Note: the values returned by these functions must not outlive the SetHeaderProcessor object
-  const std::string& getPath() const { return request_path_; }
-  void setPath(absl::string_view path) { request_path_ = std::string(path); }
-
-  std::string request_path_; // path to set
+  DynamicFunctionProcessorSharedPtr request_path_; // path to set
 };
 
 class SetDynamicMetadataProcessor : public HeaderProcessor {
@@ -150,7 +132,7 @@ public:
 
 private:
   // Note: the values returned by these functions must not outlive the SetDynamicMetadataProcessor object
-  std::string metadata_key_;
+  DynamicFunctionProcessorSharedPtr metadata_key_ = nullptr;
   DynamicFunctionProcessorSharedPtr metadata_value_ = nullptr;
 };
 

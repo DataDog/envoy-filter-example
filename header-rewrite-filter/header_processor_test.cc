@@ -71,10 +71,11 @@ TEST_F(ProcessorTest, AppendHeaderProcessorTest) {
     EXPECT_EQ("mock_value", headers.get(Http::LowerCaseString("mock_header"))[0]->value().getStringView());
 
     // can set multiple values
+    AppendHeaderProcessor append_header_processor_multiple_values = AppendHeaderProcessor(nullptr, true);
     operation_expression = {"http-request", "append-header", "mock_key", "mock_val1", "mock_val2"};
-    status = append_header_processor.parseOperation(operation_expression, (operation_expression.begin() + 2));
+    status = append_header_processor_multiple_values.parseOperation(operation_expression, (operation_expression.begin() + 2));
     EXPECT_TRUE(status == absl::OkStatus());
-    status = append_header_processor.executeOperation(headers, stream_info);
+    status = append_header_processor_multiple_values.executeOperation(headers, stream_info);
     EXPECT_TRUE(status == absl::OkStatus());
     EXPECT_EQ("mock_val1,mock_val2", headers.get(Http::LowerCaseString("mock_key"))[0]->value().getStringView());
 
