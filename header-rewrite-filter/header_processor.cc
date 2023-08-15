@@ -402,26 +402,64 @@ namespace HeaderRewriteFilter {
 
     // return status and condition result
     std::tuple<absl::Status, bool> ConditionProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) {
+        return executeOperationRecursively(headers, streamInfo, operators_.begin(), operators_.end(), operands_.begin(), operands_.end());
+    }
+
+    std::tuple<absl::Status, bool> ConditionProcessor::executeOperationRecursively(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo,
+        std::vector<Utility::BooleanOperatorType>::iterator operators_start, std::vector<Utility::BooleanOperatorType>::iterator operators_end,
+        std::vector<std::tuple<std::string, bool>>::iterator operands_start, std::vector<std::tuple<std::string, bool>>::iterator operands_end
+    ) {
+        // find first occurrence of OR operator -- we want to execute this last
+        auto OR_iterator = std::find_if(operators_start, operators_end, Utility::isOR);
+
+        // if all the operators left are ANDs (or there are no operators left), we can execute this in order
+        if (OR_iterator == operators_end) {
+            return executeOperationLinearly(headers, streamInfo, operators_start, operators_end, operands_start, operands_end);
+        }
+
+        // execute everything else first before doing the OR
+        const std::tuple<absl::Status, bool> left_result = executeOperationRecursively(headers, streamInfo, operators_start, OR_iterator, operands_start, operands_start + std::distance(operators_start, OR_iterator) + 1);
+        const std::tuple<absl::Status, bool> right_result = executeOperationRecursively(headers, streamInfo, OR_iterator + 1, operators_end, operands_start + std::distance(operators_start, OR_iterator) + 1, operands_end);
+        
+        const absl::Status left_status = std::get<0>(left_result);
+        const absl::Status right_status = std::get<0>(right_result);
+        const bool left_boolean_value = std::get<1>(left_result);
+        const bool right_boolean_value = std::get<1>(right_result);
+
+        if (left_status != absl::OkStatus()) {
+            return left_result;
+        }
+        if (right_status != absl::OkStatus()) {
+            return right_result;
+        }
+
+        return std::make_tuple(absl::OkStatus(), left_boolean_value || right_boolean_value);
+    }
+
+    std::tuple<absl::Status, bool> ConditionProcessor::executeOperationLinearly(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo,
+        std::vector<Utility::BooleanOperatorType>::iterator operators_start, std::vector<Utility::BooleanOperatorType>::iterator operators_end,
+        std::vector<std::tuple<std::string, bool>>::iterator operands_start, std::vector<std::tuple<std::string, bool>>::iterator operands_end
+    ) {
         try {
-            const SetBoolProcessorSharedPtr first_bool_processor = bool_processors_->at(std::string(std::get<0>(operands_.at(0))));
+            const SetBoolProcessorSharedPtr first_bool_processor = bool_processors_->at(std::string(std::get<0>(*operands_start)));
             // look up the bool in the map, evaluate the value of the bool, and store the result
-            const std::tuple<absl::Status, bool> bool_var_result = first_bool_processor->executeOperation(headers, streamInfo, std::get<1>(operands_.at(0)));
+            const std::tuple<absl::Status, bool> bool_var_result = first_bool_processor->executeOperation(headers, streamInfo, std::get<1>(*operands_start));
             const absl::Status status = std::get<0>(bool_var_result);
             if (status != absl::OkStatus()) {
                 return std::make_tuple(status, false);
             }
             const bool bool_var = std::get<1>(bool_var_result);
-            if (operands_.size() == 1) {
+            if (std::distance(operands_start, operands_end) == 1) {
                 return std::make_tuple(absl::OkStatus(), bool_var);
             }
 
             bool result = bool_var;
 
-            auto operators_it = operators_.begin();
-            auto operands_it = operands_.begin() + 1;
+            auto operators_it = operators_start;
+            auto operands_it = operands_start + 1;
 
             // continue evaluating the condition from left to right
-            while (operators_it != operators_.end() && operands_it != operands_.end()) {
+            while (operators_it != operators_end && operands_it != operands_end) {
                 const SetBoolProcessorSharedPtr next_bool_processor = bool_processors_->at(std::string(std::get<0>((*operands_it))));
 
                 const std::tuple<absl::Status, bool> bool_var_result = next_bool_processor->executeOperation(headers, streamInfo, std::get<1>(*operands_it));

@@ -67,6 +67,12 @@ public:
   virtual ~ConditionProcessor() {}
   virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start);
   virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo); // return status and condition result
+  virtual std::tuple<absl::Status, bool> executeOperationRecursively(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo,
+    std::vector<Utility::BooleanOperatorType>::iterator operators_start, std::vector<Utility::BooleanOperatorType>::iterator operators_end,
+    std::vector<std::tuple<std::string, bool>>::iterator operands_start, std::vector<std::tuple<std::string, bool>>::iterator operands_end);
+  virtual std::tuple<absl::Status, bool> executeOperationLinearly(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, 
+    std::vector<Utility::BooleanOperatorType>::iterator operators_start, std::vector<Utility::BooleanOperatorType>::iterator operators_end,
+    std::vector<std::tuple<std::string, bool>>::iterator operands_start, std::vector<std::tuple<std::string, bool>>::iterator operands_end);
 
 private:
   std::vector<Utility::BooleanOperatorType> operators_;

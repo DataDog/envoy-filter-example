@@ -86,6 +86,7 @@ BooleanOperatorType StringToBooleanOperatorType(absl::string_view bool_operator)
 FunctionType StringToFunctionType(absl::string_view function);
 
 bool isOperator(BooleanOperatorType operator_type);
+bool isOR(BooleanOperatorType operator_type);
 bool isBinaryOperator(BooleanOperatorType operator_type);
 bool evaluateExpression(bool operand1, BooleanOperatorType operator_val, bool operand2);
 

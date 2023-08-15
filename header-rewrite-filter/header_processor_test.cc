@@ -232,13 +232,17 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
         "not mock_false_bool",
         "mock_true_bool and mock_true_bool",
         "mock_true_bool or mock_false_bool",
-        "mock_true_bool or not mock_false_bool or mock_false_bool"
+        "mock_true_bool or not mock_false_bool or mock_false_bool",
+        "mock_true_bool or mock_false_bool and mock_false_bool",
+        "mock_true_bool or not mock_false_bool or not mock_true_bool and mock_true_bool or mock_false_bool and mock_false_bool or mock_true_bool"
     };
 
     std::vector<absl::string_view> false_condition_test_cases = {
         "mock_false_bool",
         "not mock_true_bool",
-        "mock_true_bool or mock_false_bool and mock_false_bool"
+        "mock_false_bool and not mock_true_bool or not mock_true_bool or mock_true_bool and mock_false_bool or mock_false_bool or not mock_true_bool",
+        "not mock_true_bool or mock_true_bool and not mock_true_bool",
+        "mock_true_bool and mock_true_bool and not mock_false_bool and mock_false_bool or mock_true_bool and mock_false_bool and mock_true_bool or not mock_true_bool"
     };
 
     std::vector<absl::string_view> invalid_parsing_test_cases = {
