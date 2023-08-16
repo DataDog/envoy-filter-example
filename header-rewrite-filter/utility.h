@@ -46,6 +46,7 @@ constexpr absl::string_view BOOLEAN_NOT = "not";
 
 constexpr absl::string_view DYNAMIC_VALUE_HDR = "hdr";
 constexpr absl::string_view DYNAMIC_VALUE_URL_PARAM = "urlp";
+constexpr absl::string_view DYNAMIC_VALUE_METADATA = "metadata";
 
 enum class OperationType : int {
   SetHeader,
@@ -74,6 +75,7 @@ enum class BooleanOperatorType : int {
 enum class FunctionType : int {
   GetHdr,
   Urlp,
+  GetMetadata,
   Static,
   InvalidFunctionType
 };

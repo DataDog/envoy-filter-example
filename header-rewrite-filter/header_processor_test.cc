@@ -281,10 +281,10 @@ TEST_F(ProcessorTest, ConditionProcessorTest) {
     }
 }
 
-TEST_F(ProcessorTest, SetDynamicMetadataTest) {
-    std::vector<absl::string_view> positive_test_cases = {
-        "http-request set-metadata mock_key %[hdr(mock_header,-1)]",
-        "http-request set-metadata mock_key %[urlp(param1)]"
+TEST_F(ProcessorTest, DynamicMetadataTest) {
+    std::vector<std::tuple<absl::string_view, absl::string_view>> positive_test_cases = {
+        std::make_tuple("http-request set-metadata mock_key %[hdr(mock_header,-1)]", "http-request set-header metadata_value %[metadata(mock_key)]"),
+        std::make_tuple("http-request set-metadata another_mock_key %[urlp(param1)]", "http-request set-header another_mock_header %[metadata(another_mock_key)]")
     };
 
     std::vector<absl::string_view> negative_parsing_test_cases = {
@@ -307,11 +307,19 @@ TEST_F(ProcessorTest, SetDynamicMetadataTest) {
     ON_CALL(stream_info, dynamicMetadata()).WillByDefault(ReturnRef(dynamic_metadata));
     
     for (const auto operation_expression : positive_test_cases) {
-        std::vector<absl::string_view> tokens = StringUtil::splitToken(operation_expression, " ", false, true);
+        std::vector<absl::string_view> tokens = StringUtil::splitToken(std::get<0>(operation_expression), " ", false, true);
         SetDynamicMetadataProcessor dynamic_metadata_processor = SetDynamicMetadataProcessor(nullptr, tokens.at(0) == "http-request");
         absl::Status status = dynamic_metadata_processor.parseOperation(tokens, tokens.begin() + 2);
         EXPECT_TRUE(status == absl::OkStatus());
         status = dynamic_metadata_processor.executeOperation(headers, &stream_info);
+        EXPECT_TRUE(status == absl::OkStatus());
+
+        // confirm that metadata can be fetched
+        std::vector<absl::string_view> verify_tokens = StringUtil::splitToken(std::get<1>(operation_expression), " ", false, true);
+        SetHeaderProcessor set_header_processor = SetHeaderProcessor(nullptr, verify_tokens.at(0) == "http-request");
+        status = set_header_processor.parseOperation(verify_tokens, verify_tokens.begin() + 2);
+        EXPECT_TRUE(status == absl::OkStatus());
+        status = set_header_processor.executeOperation(headers, &stream_info);
         EXPECT_TRUE(status == absl::OkStatus());
     }
 

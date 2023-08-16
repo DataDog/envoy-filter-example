@@ -41,6 +41,7 @@ private:
   Utility::FunctionType getFunctionType(absl::string_view function_expression);
   std::tuple<absl::Status, std::string> getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param);
   std::tuple<absl::Status, std::string> getHeaderValue(Http::RequestOrResponseHeaderMap& headers, absl::string_view key, int position);
+  std::tuple<absl::Status, std::string> getDynamicMetadata(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key);
 
   Utility::FunctionType function_type_;
   std::string function_argument_;
