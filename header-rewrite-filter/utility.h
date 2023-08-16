@@ -74,6 +74,7 @@ enum class BooleanOperatorType : int {
 enum class FunctionType : int {
   GetHdr,
   Urlp,
+  Static,
   InvalidFunctionType
 };
 

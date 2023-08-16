@@ -20,19 +20,27 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("not enough arguments for set-header");
         }
 
-        // parse key and call setKey
+        // parse key
         try {
             const absl::string_view key = *start;
-            setKey(key);
+            header_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            const absl::Status header_key_parse_status = header_key_->parseOperation(key);
+            if (header_key_parse_status != absl::OkStatus()) {
+                return header_key_parse_status;
+            }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
             return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
         }
 
-        // parse values and call setVals
+        // parse values
         try {
             const absl::string_view val = *(start + 1);
-            setVal(val);
+            header_val_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            const absl::Status header_val_parse_status = header_val_->parseOperation(val);
+            if (header_val_parse_status != absl::OkStatus()) {
+                return header_val_parse_status;
+            }
 
             if ((start + 2) != operation_expression.end()) {
                 if (*(start + 2) == Utility::IF_KEYWORD) { // condition found
@@ -61,7 +69,11 @@ namespace HeaderRewriteFilter {
         // parse key and call setKey
         try {
             const absl::string_view key = *start;
-            setKey(key);
+            header_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            const absl::Status header_key_parse_status = header_key_->parseOperation(key);
+            if (header_key_parse_status != absl::OkStatus()) {
+                return header_key_parse_status;
+            }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
             return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
@@ -69,7 +81,6 @@ namespace HeaderRewriteFilter {
 
         // parse values and call setVals
         try {
-            std::vector<std::string> vals;
             for(auto it = start + 1; it != operation_expression.end(); ++it) {
                 if (*it == Utility::IF_KEYWORD) { // condition found
 
@@ -80,9 +91,14 @@ namespace HeaderRewriteFilter {
                     }
                     break;
                 }
-                vals.push_back(std::string{*it}); // could throw bad_alloc
+                const absl::string_view val = *it;
+                const DynamicFunctionProcessorSharedPtr header_val = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+                const absl::Status header_val_parse_status = header_val->parseOperation(val);
+                if (header_val_parse_status != absl::OkStatus()) {
+                    return header_val_parse_status;
+                }
+                header_vals_.push_back(header_val);
             }
-            setVals(vals);
         } catch (const std::exception& e) {
             return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
         }
@@ -112,15 +128,28 @@ namespace HeaderRewriteFilter {
         if (status != absl::OkStatus()) {
             return status;
         }
-        const absl::string_view key = getKey();
-        const std::string header_val(getVal());
 
         if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
         }
+
+        // fetch dynamic values for header key and value
+        const std::tuple<absl::Status, std::string> key_result = header_key_->executeOperation(headers, streamInfo);
+        const absl::Status key_status = std::get<0>(key_result);
+        const absl::string_view key = std::get<1>(key_result);
+        const std::tuple<absl::Status, std::string> value_result = header_val_->executeOperation(headers, streamInfo);
+        const absl::Status value_status = std::get<0>(value_result);
+        const absl::string_view value = std::get<1>(value_result);
+
+        if (key_status != absl::OkStatus()) {
+            return absl::InvalidArgumentError("Failed to get dynamic value for set header -- " + std::string(key_status.message()));
+        }
+        if (value_status != absl::OkStatus()) {
+            return absl::InvalidArgumentError("Failed to get dynamic value for set header -- " + std::string(value_status.message()));
+        }
         
         // set header
-        headers.setCopy(Http::LowerCaseString(key), header_val); // should never return an error
+        headers.setCopy(Http::LowerCaseString(key), value); // should never return an error
 
 
         return absl::OkStatus();
@@ -133,16 +162,21 @@ namespace HeaderRewriteFilter {
         if (status != absl::OkStatus()) {
             return status;
         }
-        const absl::string_view key = getKey();
-        const std::vector<std::string>& header_vals = getVals();
 
         if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
         }
-        
+
+        const std::tuple<absl::Status, std::string> key_result = header_key_->executeOperation(headers, streamInfo);
+        const absl::Status key_status = std::get<0>(key_result);
+        const absl::string_view key = std::get<1>(key_result);
+
         // append header
-        for (auto const& header_val : header_vals) {
-            headers.appendCopy(Http::LowerCaseString(key), header_val); // should never return an error
+        for (auto const& header_val : header_vals_) {
+            const std::tuple<absl::Status, std::string> value_result = header_val->executeOperation(headers, streamInfo);
+            const absl::Status value_status = std::get<0>(value_result);
+            const absl::string_view value = std::get<1>(value_result);
+            headers.appendCopy(Http::LowerCaseString(key), value); // should never return an error
         }
 
         return absl::OkStatus();
@@ -155,8 +189,12 @@ namespace HeaderRewriteFilter {
 
         // parse path and call setPath
         try {
-            absl::string_view request_path = *start;
-            setPath(request_path);
+            const absl::string_view request_path_string = *start;
+            request_path_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            const absl::Status path_parse_status = request_path_->parseOperation(request_path_string);
+            if (path_parse_status != absl::OkStatus()) {
+                return path_parse_status;
+            }
 
             if (operation_expression.size() > 3) {
                 auto it = start + 1;
@@ -185,7 +223,9 @@ namespace HeaderRewriteFilter {
             return status;
         }
 
-        const std::string new_path = getPath();
+        const std::tuple<absl::Status, std::string> path_result = request_path_->executeOperation(headers, streamInfo);
+        const absl::Status path_status = std::get<0>(path_result);
+        const std::string new_path = std::get<1>(path_result);
 
         if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
@@ -428,11 +468,13 @@ namespace HeaderRewriteFilter {
         return absl::InvalidArgumentError("invalid syntax for dynamic function -- function too short");
     }
 
-    // make sure dynamic function is wrapped in %[]
+    // if FunctionType is static (string literal)
     if (function_expression.substr(0, 2) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(0, 2) && function_expression.substr(function_expression.size()-1, 1) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(2, 1)) {
-        // TODO: treat it as a static value if it's not wrapped in %[]
-        return absl::InvalidArgumentError("dynamic function must be wrapped with %[]");
+        function_type_ = Utility::FunctionType::Static;
+        function_argument_ = std::string(function_expression);
+        return absl::OkStatus();
     }
+
     function_type_ = getFunctionType(function_expression.substr(2, function_expression.size() - Utility::DYNAMIC_FUNCTION_DELIMITER.size()));
     if (function_type_ == Utility::FunctionType::InvalidFunctionType) {
         return absl::InvalidArgumentError("invalid function type for dynamic value");
@@ -547,6 +589,11 @@ namespace HeaderRewriteFilter {
             source = std::get<1>(result);
             return std::make_tuple(absl::OkStatus(), source);
         }
+        case Utility::FunctionType::Static:
+        {
+            source = function_argument_;
+            return std::make_tuple(absl::OkStatus(), source);
+        }
         default:
             break;
     }
@@ -559,13 +606,17 @@ namespace HeaderRewriteFilter {
     }
 
     try {
-        metadata_key_ = std::string(*start);
+        metadata_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+        const absl::Status parse_metadata_key_status =  metadata_key_->parseOperation(*start);
+        if (parse_metadata_key_status != absl::OkStatus()) {
+            return parse_metadata_key_status;
+        }
+
         const absl::string_view value = *(start + 1);
         metadata_value_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
-        const absl::Status parse_dynamic_function_status = metadata_value_->parseOperation(value);
-
-        if (parse_dynamic_function_status != absl::OkStatus()) {
-            return parse_dynamic_function_status;
+        const absl::Status parse_metadata_value_status = metadata_value_->parseOperation(value);
+        if (parse_metadata_value_status != absl::OkStatus()) {
+            return parse_metadata_value_status;
         }
 
         if (start + 2 != operation_expression.end()) {
@@ -600,7 +651,17 @@ namespace HeaderRewriteFilter {
             return absl::OkStatus(); // do nothing because condition is false
         }
 
-        // get dynamic value to set
+        // get key and value to set
+        const std::tuple<absl::Status, std::string> metadata_key_result = metadata_key_->executeOperation(headers, streamInfo);
+        const absl::Status metadata_key_status = std::get<0>(metadata_key_result);
+        const std::string key = std::get<1>(metadata_key_result);
+        if (metadata_key_status != absl::OkStatus()) {
+            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- " + std::string(metadata_key_status.message()));
+        }
+        if (key.length() == 0) {
+            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- no value");
+        }
+
         const std::tuple<absl::Status, std::string> metadata_value_result = metadata_value_->executeOperation(headers, streamInfo);
         const absl::Status metadata_value_status = std::get<0>(metadata_value_result);
         const std::string value = std::get<1>(metadata_value_result);
@@ -611,6 +672,7 @@ namespace HeaderRewriteFilter {
             return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- no value");
         }
 
+        // make sure metadata is not null
         if (!streamInfo) {
             return absl::InvalidArgumentError("streamInfo is null");
         }
@@ -624,11 +686,11 @@ namespace HeaderRewriteFilter {
         val.set_string_value(value);
 
         // we have to erase the key if it exists, otherwise map insert will do nothing
-        if (fields.find(metadata_key_) != fields.end()) {
-            fields.erase(metadata_key_);
+        if (fields.find(key) != fields.end()) {
+            fields.erase(key);
         }
  
-        fields.insert({metadata_key_, val});
+        fields.insert({key, val});
         streamInfo->setDynamicMetadata(std::string(Utility::HEADER_REWRITE_FILTER_NAME), metadata);
         
         return absl::OkStatus();
