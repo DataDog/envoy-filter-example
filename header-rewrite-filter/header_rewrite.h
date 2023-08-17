@@ -17,12 +17,10 @@ class HttpHeaderRewriteFilterConfig {
 public:
   HttpHeaderRewriteFilterConfig(const envoy::extensions::filters::http::HeaderRewrite& proto_config);
 
-  const std::string& key() const { return key_; }
-  const std::string& val() const { return val_; }
+  const std::string& config() const { return config_; }
 
 private:
-  const std::string key_;
-  const std::string val_;
+  const std::string config_;
 };
 
 using HttpHeaderRewriteFilterConfigSharedPtr = std::shared_ptr<HttpHeaderRewriteFilterConfig>;
@@ -54,8 +52,7 @@ private:
   SetBoolProcessorMapSharedPtr request_set_bool_processors_;
   SetBoolProcessorMapSharedPtr response_set_bool_processors_;
 
-  const Http::LowerCaseString headerKey() const;
-  const std::string headerValue() const;
+  const std::string headerConfig() const;
   void setError() { error_ = true; }
   bool getError() const { return error_; };
 };

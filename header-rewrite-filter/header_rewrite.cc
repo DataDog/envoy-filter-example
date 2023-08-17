@@ -21,7 +21,7 @@ void fail(absl::string_view msg) {
 
 HttpHeaderRewriteFilterConfig::HttpHeaderRewriteFilterConfig(
     const envoy::extensions::filters::http::HeaderRewrite& proto_config)
-    : key_(proto_config.key()), val_(proto_config.val()) {}
+    : config_(proto_config.config()) {}
 
 HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSharedPtr config)
     : config_(config) {
@@ -30,7 +30,7 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
   request_set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
   response_set_bool_processors_ = std::make_shared<std::unordered_map<std::string, SetBoolProcessorSharedPtr>>();
   
-  const std::string header_config = headerValue();
+  const std::string header_config = headerConfig();
 
   // split by operation (newline delimited config)
   auto operations = StringUtil::splitToken(header_config, "\n", false, true);
@@ -132,12 +132,8 @@ HttpHeaderRewriteFilter::HttpHeaderRewriteFilter(HttpHeaderRewriteFilterConfigSh
   }
 }
 
-const Http::LowerCaseString HttpHeaderRewriteFilter::headerKey() const {
-  return Http::LowerCaseString(config_->key());
-}
-
-const std::string HttpHeaderRewriteFilter::headerValue() const {
-  return config_->val();
+const std::string HttpHeaderRewriteFilter::headerConfig() const {
+  return config_->config();
 }
 
 Http::FilterHeadersStatus HttpHeaderRewriteFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {

@@ -22,6 +22,9 @@ namespace HeaderRewriteFilter {
 
         // parse key
         try {
+            if (start == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             const absl::string_view key = *start;
             header_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
             const absl::Status header_key_parse_status = header_key_->parseOperation(key);
@@ -29,12 +32,15 @@ namespace HeaderRewriteFilter {
                 return header_key_parse_status;
             }
         } catch (const std::exception& e) {
-            // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
+            // should never happen, range is checked at the start
+            return absl::UnknownError("error parsing header key -- " + std::string(e.what()));
         }
 
         // parse values
         try {
+            if (start + 1 == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             const absl::string_view val = *(start + 1);
             header_val_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
             const absl::Status header_val_parse_status = header_val_->parseOperation(val);
@@ -56,7 +62,7 @@ namespace HeaderRewriteFilter {
             }
 
         } catch (const std::exception& e) {
-            return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
+            return absl::UnknownError("error parsing header values -- " + std::string(e.what()));
         }
         return absl::OkStatus();
     }
@@ -68,6 +74,9 @@ namespace HeaderRewriteFilter {
 
         // parse key and call setKey
         try {
+            if (start == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             const absl::string_view key = *start;
             header_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
             const absl::Status header_key_parse_status = header_key_->parseOperation(key);
@@ -76,16 +85,18 @@ namespace HeaderRewriteFilter {
             }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing header key -- " + std::string(e.what()));
+            return absl::UnknownError("error parsing header key -- " + std::string(e.what()));
         }
 
         // parse values and call setVals
         try {
             for(auto it = start + 1; it != operation_expression.end(); ++it) {
                 if (*it == Utility::IF_KEYWORD) { // condition found
+                    if (header_vals_.size() == 0) { // missing header value to append
+                        return absl::InvalidArgumentError("missing header value argument(s) for append-header");
+                    }
 
                     const absl::Status status = HeaderProcessor::ConditionProcessorSetup(operation_expression, it+1); // pass everything after the "if"
-
                     if (status != absl::OkStatus()) {
                         return status;
                     }
@@ -100,7 +111,7 @@ namespace HeaderRewriteFilter {
                 header_vals_.push_back(header_val);
             }
         } catch (const std::exception& e) {
-            return absl::InvalidArgumentError("error parsing header values -- " + std::string(e.what()));
+            return absl::UnknownError("error parsing header values -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -136,21 +147,20 @@ namespace HeaderRewriteFilter {
         // fetch dynamic values for header key and value
         const std::tuple<absl::Status, std::string> key_result = header_key_->executeOperation(headers, streamInfo);
         const absl::Status key_status = std::get<0>(key_result);
-        const absl::string_view key = std::get<1>(key_result);
+        const std::string key = std::move(std::get<1>(key_result));
         const std::tuple<absl::Status, std::string> value_result = header_val_->executeOperation(headers, streamInfo);
         const absl::Status value_status = std::get<0>(value_result);
-        const absl::string_view value = std::get<1>(value_result);
+        const std::string value = std::move(std::get<1>(value_result));
 
         if (key_status != absl::OkStatus()) {
-            return absl::InvalidArgumentError("Failed to get dynamic value for set header -- " + std::string(key_status.message()));
+            return absl::UnknownError("Failed to get dynamic value for set header -- " + std::string(key_status.message()));
         }
         if (value_status != absl::OkStatus()) {
-            return absl::InvalidArgumentError("Failed to get dynamic value for set header -- " + std::string(value_status.message()));
+            return absl::UnknownError("Failed to get dynamic value for set header -- " + std::string(value_status.message()));
         }
         
         // set header
         headers.setCopy(Http::LowerCaseString(key), value); // should never return an error
-
 
         return absl::OkStatus();
     }
@@ -169,13 +179,20 @@ namespace HeaderRewriteFilter {
 
         const std::tuple<absl::Status, std::string> key_result = header_key_->executeOperation(headers, streamInfo);
         const absl::Status key_status = std::get<0>(key_result);
-        const absl::string_view key = std::get<1>(key_result);
+        const std::string key = std::move(std::get<1>(key_result));
+
+        if (key_status != absl::OkStatus()) {
+            return key_status;
+        }
 
         // append header
         for (auto const& header_val : header_vals_) {
             const std::tuple<absl::Status, std::string> value_result = header_val->executeOperation(headers, streamInfo);
             const absl::Status value_status = std::get<0>(value_result);
-            const absl::string_view value = std::get<1>(value_result);
+            const std::string value = std::move(std::get<1>(value_result));
+            if (value_status != absl::OkStatus()) {
+                return value_status;
+            }
             headers.appendCopy(Http::LowerCaseString(key), value); // should never return an error
         }
 
@@ -189,6 +206,9 @@ namespace HeaderRewriteFilter {
 
         // parse path and call setPath
         try {
+            if (start == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             const absl::string_view request_path_string = *start;
             request_path_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
             const absl::Status path_parse_status = request_path_->parseOperation(request_path_string);
@@ -197,7 +217,10 @@ namespace HeaderRewriteFilter {
             }
 
             if (operation_expression.size() > 3) {
-                auto it = start + 1;
+                const auto it = start + 1;
+                if (it == operation_expression.end()) {
+                    throw std::out_of_range("unexpected end of expression");
+                }
                 if (*it != Utility::IF_KEYWORD) {
                     return absl::InvalidArgumentError("second argument to set-path must be a condition");
                 }
@@ -210,7 +233,7 @@ namespace HeaderRewriteFilter {
             }
         } catch (const std::exception& e) {
             // should never happen, range is checked above
-            return absl::InvalidArgumentError("error parsing request path argument -- " + std::string(e.what()));
+            return absl::UnknownError("error parsing request path argument -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -225,7 +248,7 @@ namespace HeaderRewriteFilter {
 
         const std::tuple<absl::Status, std::string> path_result = request_path_->executeOperation(headers, streamInfo);
         const absl::Status path_status = std::get<0>(path_result);
-        const std::string new_path = std::get<1>(path_result);
+        const std::string new_path = std::move(std::get<1>(path_result));
 
         if (!std::get<1>(condition_result)) {
             return absl::OkStatus(); // do nothing because condition is false
@@ -258,10 +281,17 @@ namespace HeaderRewriteFilter {
                 return absl::InvalidArgumentError("not enough arguments for set-bool");
             }
 
+            if (start + 2 == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             if (*(start + 2) != "-m") {
                 return absl::InvalidArgumentError("invalid match syntax");
             }
+
             const Utility::MatchType match_type = Utility::StringToMatchType(*(start + 3));
+            if (start + 3 == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
 
             // validate number of arguments
             if (Utility::requiresArgument(match_type)) {
@@ -277,6 +307,9 @@ namespace HeaderRewriteFilter {
 
             // parse dynamic function
             dynamic_function_processor_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            if (start + 1 == operation_expression.end()) {
+                throw std::out_of_range("unexpected end of expression");
+            }
             const absl::string_view dynamic_function_expression = *(start + 1);
             const absl::Status dynamic_function_status = dynamic_function_processor_->parseOperation(dynamic_function_expression);
             if (dynamic_function_status != absl::OkStatus()) {
@@ -286,19 +319,28 @@ namespace HeaderRewriteFilter {
             switch (match_type) {
                 case Utility::MatchType::Exact:
                 {
-                    std::string string_to_compare = std::string(*(start + 4));
+                    if (start + 4 == operation_expression.end()) {
+                        throw std::out_of_range("unexpected end of expression");
+                    }
+                    std::string string_to_compare(*(start + 4));
                     matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.compare(string_to_compare) == 0; };
                     break;
                 }
                 case Utility::MatchType::Prefix:
                 {
-                    std::string string_to_compare = std::string(*(start + 4));
+                    if (start + 4 == operation_expression.end()) {
+                        throw std::out_of_range("unexpected end of expression");
+                    }
+                    std::string string_to_compare(*(start + 4));
                     matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
                     break;
                 }
                 case Utility::MatchType::Substr:
                 {
-                    std::string string_to_compare = std::string(*(start + 4));
+                    if (start + 4 == operation_expression.end()) {
+                        throw std::out_of_range("unexpected end of expression");
+                    }
+                    std::string string_to_compare(*(start + 4));
                     matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.find(string_to_compare) != std::string::npos; };
                     break;
                 }
@@ -311,8 +353,9 @@ namespace HeaderRewriteFilter {
                     return absl::InvalidArgumentError("invalid match type");
             }
 
-        } catch (const std::exception& e) { // could throw bad optional access if config syntax is wrong
-            return absl::InvalidArgumentError("error parsing boolean expression -- " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            // could throw bad optional access if config syntax is wrong, or out of range if some match cases are missing an argument
+            return absl::UnknownError("error parsing boolean expression -- " + std::string(e.what()));
         }
 
         return absl::OkStatus();
@@ -321,7 +364,7 @@ namespace HeaderRewriteFilter {
     std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate) {
         const std::tuple<absl::Status, std::string> result = dynamic_function_processor_->executeOperation(headers, streamInfo);
         const absl::Status status = std::get<0>(result);
-        const std::string source = std::get<1>(result);
+        const std::string source = std::move(std::get<1>(result));
 
         if (status != absl::OkStatus()) {
             return std::make_tuple(status, false);
@@ -334,15 +377,19 @@ namespace HeaderRewriteFilter {
     }
 
     absl::Status ConditionProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
-        // make sure operands and operators vectors are empty
+        // empty operands and operators vectors
         operands_ = {};
         operators_ = {};
 
-        Utility::BooleanOperatorType start_type;
+        if (start == operation_expression.end()) {
+            throw std::out_of_range("unexpected end of expression");
+        }
+
+        const Utility::BooleanOperatorType start_type = Utility::StringToBooleanOperatorType(*start);
+
         if (operation_expression.size() < 1) {
             return absl::InvalidArgumentError("empty condition provided to condition processor");
         }
-        start_type = Utility::StringToBooleanOperatorType(*start);
 
         // conditional can't start with a binary operator
         if (Utility::isBinaryOperator(start_type)) {
@@ -477,21 +524,21 @@ namespace HeaderRewriteFilter {
             return std::make_tuple(absl::OkStatus(), result);
 
         } catch (std::exception& e) { // fails gracefully if a faulty map access occurs
-            return std::make_tuple(absl::InvalidArgumentError("failed to process condition -- " + std::string(e.what())), false);
+            return std::make_tuple(absl::UnknownError("failed to process condition -- " + std::string(e.what())), false);
         }
     }
 
   std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getFunctionArgument(absl::string_view function_expression) {
     try {
-        auto start = function_expression.find_first_of("(");
-        auto end = function_expression.find_last_of(")");
+        const auto start = function_expression.find_first_of("(");
+        const auto end = function_expression.find_last_of(")");
         if (end != (function_expression.size()-1)) {
             return std::make_tuple(absl::InvalidArgumentError("failed to get function argument -- invalid dynamic function syntax"), "");
         }
         std::string argument = std::string(function_expression).substr(start+1, end-start-1);
         return std::make_tuple(absl::OkStatus(), argument);
     } catch (std::exception& e) {
-        return std::make_tuple(absl::InvalidArgumentError("failed to get function argument"), "");
+        return std::make_tuple(absl::UnknownError("failed to get function argument"), "");
     }
   }
 
@@ -502,12 +549,10 @@ namespace HeaderRewriteFilter {
   }
 
   absl::Status DynamicFunctionProcessor::parseOperation(absl::string_view function_expression) {
-    if (function_expression.length() < Utility::DYN_FUNCTION_MIN_LENGTH) {
-        return absl::InvalidArgumentError("invalid syntax for dynamic function -- function too short");
-    }
-
     // if FunctionType is static (string literal)
-    if (function_expression.substr(0, 2) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(0, 2) && function_expression.substr(function_expression.size()-1, 1) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(2, 1)) {
+    if ((function_expression.length() < Utility::DYN_FUNCTION_MIN_LENGTH) || 
+        (function_expression.substr(0, 2) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(0, 2) && 
+        function_expression.substr(function_expression.size()-1, 1) != Utility::DYNAMIC_FUNCTION_DELIMITER.substr(2, 1))) {
         function_type_ = Utility::FunctionType::Static;
         function_argument_ = std::string(function_expression);
         return absl::OkStatus();
@@ -569,8 +614,8 @@ namespace HeaderRewriteFilter {
         }
 
         // validate position
-        if ((position < 0) || (position >= num_header_vals)) {
-            return std::make_tuple(absl::InvalidArgumentError("invalid match syntax -- hdr position out of bounds"), "");
+        if ((position < 0) || (position >= int(num_header_vals))) {
+            return std::make_tuple(absl::OutOfRangeError("invalid match syntax -- hdr position out of bounds"), "");
         }
 
         // get comma-separated value of the header
@@ -579,21 +624,21 @@ namespace HeaderRewriteFilter {
 
         return std::make_tuple(absl::OkStatus(), source);
     } catch (std::exception& e) { // should never happen, bounds are checked above
-        return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match -- " + std::string(e.what())), "");
+        return std::make_tuple(absl::UnknownError("failed to perform boolean match -- " + std::string(e.what())), "");
     }
 }
 
-std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetadata(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key) {
+std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetadata(Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key) {
     try {
         if (!streamInfo) {
-            return std::make_tuple(absl::InvalidArgumentError("Stream info is null"), "");
+            return std::make_tuple(absl::NotFoundError("Stream info is null"), "");
         }
 
         const auto& request_metadata = streamInfo->dynamicMetadata();
         const auto& filter_metadata = request_metadata.filter_metadata();
         const auto filter_it = filter_metadata.find(std::string(Utility::HEADER_REWRITE_FILTER_NAME));
         if (filter_it == filter_metadata.end()) {
-            return std::make_tuple(absl::InvalidArgumentError("Failed to find metadata for header rewrite filter"), "");
+            return std::make_tuple(absl::NotFoundError("Failed to find metadata for header rewrite filter"), "");
         }
         const auto data = filter_it->second;
         const auto& data_value = data.fields();
@@ -604,13 +649,13 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         const auto value = value_it->second.string_value();
         return std::make_tuple(absl::OkStatus(), std::move(value));
     } catch (std::exception& e) {
-        return std::make_tuple(absl::InvalidArgumentError("failed to fetch metadata -- " + std::string(e.what())), "");
+        return std::make_tuple(absl::UnknownError("failed to fetch metadata -- " + std::string(e.what())), "");
     }
 }
 
   std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param) {
     try {
-        Http::RequestHeaderMap* request_headers = dynamic_cast<Http::RequestHeaderMap*>(&headers); // can fail if invalid config is provided, ie if response tries to get path
+        const Http::RequestHeaderMap* request_headers = dynamic_cast<Http::RequestHeaderMap*>(&headers); // can fail if invalid config is provided, ie if response tries to get path
         if (!request_headers) {
             return std::make_tuple(absl::InvalidArgumentError("cannot call urlp function on response side"), "");
         }
@@ -621,9 +666,9 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         }
         
         const std::string source(iter->second);
-        return std::make_tuple(absl::OkStatus(), source);
+        return std::make_tuple(absl::OkStatus(), std::move(source));
     } catch (std::exception& e) { // should never happen, bounds are checked above
-        return std::make_tuple(absl::InvalidArgumentError("failed to perform boolean match" + std::string(e.what())), "");
+        return std::make_tuple(absl::UnknownError("failed to perform boolean match" + std::string(e.what())), "");
     }
 }
 
@@ -642,7 +687,7 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         }
         case Utility::FunctionType::GetMetadata:
         {   
-            return getDynamicMetadata(headers, streamInfo, function_argument_);
+            return getDynamicMetadata(streamInfo, function_argument_);
         }
         case Utility::FunctionType::Static:
         {
@@ -651,7 +696,7 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         default:
             break;
     }
-    return std::make_tuple(absl::InvalidArgumentError("failed to execute dynamic function -- invalid function type"), "");
+    return std::make_tuple(absl::UnknownError("failed to execute dynamic function -- invalid function type"), "");
   }
 
   absl::Status SetDynamicMetadataProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
@@ -660,12 +705,18 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
     }
 
     try {
+        if (start == operation_expression.end()) {
+            throw std::out_of_range("unexpected end of expression");
+        }
         metadata_key_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
         const absl::Status parse_metadata_key_status =  metadata_key_->parseOperation(*start);
         if (parse_metadata_key_status != absl::OkStatus()) {
             return parse_metadata_key_status;
         }
 
+        if (start + 1 == operation_expression.end()) {
+            throw std::out_of_range("unexpected end of expression");
+        }
         const absl::string_view value = *(start + 1);
         metadata_value_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
         const absl::Status parse_metadata_value_status = metadata_value_->parseOperation(value);
@@ -687,7 +738,7 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
 
     } catch (const std::exception& e) {
         // should never happen, range is checked above
-        return absl::InvalidArgumentError("error parsing set metadata operation -- " + std::string(e.what()));
+        return absl::UnknownError("error parsing set metadata operation -- " + std::string(e.what()));
     }
 
     return absl::OkStatus();
@@ -710,25 +761,25 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         const absl::Status metadata_key_status = std::get<0>(metadata_key_result);
         const std::string key = std::get<1>(metadata_key_result);
         if (metadata_key_status != absl::OkStatus()) {
-            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- " + std::string(metadata_key_status.message()));
+            return absl::UnknownError("failed to get dynamic value to set metadata -- " + std::string(metadata_key_status.message()));
         }
         if (key.length() == 0) {
-            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- no value");
+            return absl::UnknownError("failed to get dynamic value to set metadata -- no value");
         }
 
         const std::tuple<absl::Status, std::string> metadata_value_result = metadata_value_->executeOperation(headers, streamInfo);
         const absl::Status metadata_value_status = std::get<0>(metadata_value_result);
         const std::string value = std::get<1>(metadata_value_result);
         if (metadata_value_status != absl::OkStatus()) {
-            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- " + std::string(metadata_value_status.message()));
+            return absl::UnknownError("failed to get dynamic value to set metadata -- " + std::string(metadata_value_status.message()));
         }
         if (value.length() == 0) {
-            return absl::InvalidArgumentError("failed to get dynamic value to set metadata -- no value");
+            return absl::NotFoundError("failed to get dynamic value to set metadata -- no value");
         }
 
         // make sure metadata is not null
         if (!streamInfo) {
-            return absl::InvalidArgumentError("streamInfo is null");
+            return absl::NotFoundError("streamInfo is null");
         }
 
         // set metadata
@@ -749,7 +800,7 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         
         return absl::OkStatus();
     } catch (std::exception& e) {
-        return absl::InvalidArgumentError("failed to set metadata -- " + std::string(e.what()));
+        return absl::UnknownError("failed to set metadata -- " + std::string(e.what()));
     }
   }
 
