@@ -275,6 +275,15 @@ namespace HeaderRewriteFilter {
         return absl::OkStatus();
     }
 
+    absl::Status SetBoolProcessor::stringToCompareSetup(absl::string_view string_to_compare) {
+        string_to_compare_function_processor_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+        const absl::Status parse_status = string_to_compare_function_processor_->parseOperation(string_to_compare);
+        if (parse_status != absl::OkStatus()) {
+            return parse_status;
+        }
+        return absl::OkStatus();
+    }
+
     absl::Status SetBoolProcessor::parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) {
         try {
             if (operation_expression.size() < Utility::SET_BOOL_MIN_NUM_ARGUMENTS) {
@@ -306,14 +315,14 @@ namespace HeaderRewriteFilter {
             }
 
             // parse dynamic function
-            dynamic_function_processor_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
+            source_processor_ = std::make_shared<DynamicFunctionProcessor>(bool_processors_, is_request_);
             if (start + 1 == operation_expression.end()) {
                 throw std::out_of_range("unexpected end of expression");
             }
-            const absl::string_view dynamic_function_expression = *(start + 1);
-            const absl::Status dynamic_function_status = dynamic_function_processor_->parseOperation(dynamic_function_expression);
-            if (dynamic_function_status != absl::OkStatus()) {
-                return dynamic_function_status;
+            const absl::string_view source_function_expression = *(start + 1);
+            const absl::Status source_function_status = source_processor_->parseOperation(source_function_expression);
+            if (source_function_status != absl::OkStatus()) {
+                return source_function_status;
             }
 
             switch (match_type) {
@@ -322,8 +331,14 @@ namespace HeaderRewriteFilter {
                     if (start + 4 == operation_expression.end()) {
                         throw std::out_of_range("unexpected end of expression");
                     }
+
                     std::string string_to_compare(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.compare(string_to_compare) == 0; };
+                    const absl::Status parse_status = stringToCompareSetup(string_to_compare);
+                    if (parse_status != absl::OkStatus()) {
+                        return parse_status;
+                    }
+
+                    matcher_ = [](const std::string& source, const std::string& string_to_compare) { return source.length() > 0 && source.compare(string_to_compare) == 0; };
                     break;
                 }
                 case Utility::MatchType::Prefix:
@@ -331,8 +346,14 @@ namespace HeaderRewriteFilter {
                     if (start + 4 == operation_expression.end()) {
                         throw std::out_of_range("unexpected end of expression");
                     }
+
                     std::string string_to_compare(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
+                    const absl::Status parse_status = stringToCompareSetup(string_to_compare);
+                    if (parse_status != absl::OkStatus()) {
+                        return parse_status;
+                    }
+
+                    matcher_ = [](const std::string& source, const std::string& string_to_compare) { return source.length() > 0 && string_to_compare.find(source.c_str(), 0, string_to_compare.size()) == 0; };
                     break;
                 }
                 case Utility::MatchType::Substr:
@@ -340,13 +361,24 @@ namespace HeaderRewriteFilter {
                     if (start + 4 == operation_expression.end()) {
                         throw std::out_of_range("unexpected end of expression");
                     }
+
                     std::string string_to_compare(*(start + 4));
-                    matcher_ = [string_to_compare](std::string source) { return source.length() > 0 && source.find(string_to_compare) != std::string::npos; };
+                    const absl::Status parse_status = stringToCompareSetup(string_to_compare);
+                    if (parse_status != absl::OkStatus()) {
+                        return parse_status;
+                    }
+
+                    matcher_ = [](const std::string& source, const std::string& string_to_compare) { return source.length() > 0 && source.find(string_to_compare) != std::string::npos; };
                     break;
                 }
                 case Utility::MatchType::Found: // urlp found or hdr found
                 {
-                    matcher_ = [](std::string source) { return source.length() > 0; };
+                    const absl::Status parse_status = stringToCompareSetup(""); // empty string since this match case doesn't take another argument
+                    if (parse_status != absl::OkStatus()) {
+                        return parse_status;
+                    }
+
+                    matcher_ = [](const std::string& source, [[maybe_unused]] const std::string& string_to_compare) { return source.length() > 0; };
                     break;
                 }
                 default:
@@ -362,15 +394,23 @@ namespace HeaderRewriteFilter {
     }
 
     std::tuple<absl::Status, bool> SetBoolProcessor::executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate) {
-        const std::tuple<absl::Status, std::string> result = dynamic_function_processor_->executeOperation(headers, streamInfo);
-        const absl::Status status = std::get<0>(result);
-        const std::string source = std::move(std::get<1>(result));
+        const std::tuple<absl::Status, std::string> source_result = source_processor_->executeOperation(headers, streamInfo);
+        const absl::Status source_status = std::get<0>(source_result);
+        const std::string source = std::move(std::get<1>(source_result));
 
-        if (status != absl::OkStatus()) {
-            return std::make_tuple(status, false);
+        if (source_status != absl::OkStatus()) {
+            return std::make_tuple(source_status, false);
         }
 
-        const bool bool_result = matcher_(source);
+        const std::tuple<absl::Status, std::string> string_to_compare_result = string_to_compare_function_processor_->executeOperation(headers, streamInfo);
+        const absl::Status string_to_compare_status = std::get<0>(string_to_compare_result);
+        const std::string string_to_compare = std::move(std::get<1>(string_to_compare_result));
+
+        if (string_to_compare_status != absl::OkStatus()) {
+            return std::make_tuple(string_to_compare_status, false);
+        }
+
+        const bool bool_result = matcher_(source, string_to_compare);
         const bool apply_negation = negate ? !bool_result : bool_result;
 
         return std::make_tuple(absl::OkStatus(), apply_negation);

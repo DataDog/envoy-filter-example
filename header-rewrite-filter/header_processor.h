@@ -57,8 +57,10 @@ public:
   virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate); // return status and bool result
 
 private:
-  std::function<bool(std::string)> matcher_ = []([[maybe_unused]] std::string str) -> bool { return false; };
-  DynamicFunctionProcessorSharedPtr dynamic_function_processor_ = nullptr;
+  absl::Status stringToCompareSetup(absl::string_view string_to_compare);
+  std::function<bool(const std::string, const std::string)> matcher_ = []([[maybe_unused]] const std::string& source, [[maybe_unused]] const std::string& string_to_compare) -> bool { return false; };
+  DynamicFunctionProcessorSharedPtr source_processor_ = nullptr;
+  DynamicFunctionProcessorSharedPtr string_to_compare_function_processor_ = nullptr;
 };
 
 class ConditionProcessor : public Processor {

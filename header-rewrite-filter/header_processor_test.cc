@@ -139,7 +139,8 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
         "http-request set-bool mock_bool %[hdr(mock_header1,-1)] -m str mock_value3", // exact, hdr 2 arg
         "http-request set-bool mock_bool %[hdr(mock_header1,0)] -m str mock_value1", // exact, hdr 2 arg
         "http-request set-bool mock_bool %[hdr(mock_header1,-3)] -m str mock_value1", // exact, hdr 2 arg
-        "http-request set-bool mock_bool %[hdr(mock_header3)] -m str []", // exact
+        "http-request set-bool mock_bool %[hdr(mock_header1)] -m str %[hdr(mock_header3)]", // exact, hdr 2 arg, both dynamic
+        "http-request set-bool mock_bool %[hdr(mock_header3,0)] -m str []", // exact
         "http-request set-bool mock_bool %[hdr(mock_header2)] -m beg mo", // prefix
         "http-request set-bool mock_bool %[urlp(param1)] -m beg so", // prefix, urlp
         "http-request set-bool mock_bool %[hdr(mock_header2)] -m sub lue", // substring
@@ -170,7 +171,7 @@ TEST_F(ProcessorTest, SetBoolProcessorTest) {
         Http::TestRequestHeaderMapImpl headers{
             {":method", "GET"}, {":path", "/?param1=something&param2=2"}, {":authority", "host"}, 
             {"mock_header1", "mock_value1,mock_value2,mock_value3"}, {"mock_header2", "mock_value"},
-            {"mock_header3", "[]"}};
+            {"mock_header3", "[],mock_value3"}};
         absl::Status status = set_bool_processor.parseOperation(tokens, (tokens.begin() + 2));
         EXPECT_TRUE(status == absl::OkStatus());
         EXPECT_EQ(status.message(), "");
