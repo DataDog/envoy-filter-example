@@ -5,6 +5,5 @@ package envoy.extensions.filters.http;
 import "validate/validate.proto";
 
 message HeaderRewrite {
-    string key = 1 [(validate.rules).string.min_len = 1];
-    string val = 2 [(validate.rules).string.min_len = 1];
+    string config = 1 [(validate.rules).string.min_len = 1];
 }

@@ -30,7 +30,7 @@ public:
     return ProtobufTypes::MessagePtr{new envoy::extensions::filters::http::HeaderRewrite()};
   }
 
-  std::string name() const override { return "sample"; }
+  std::string name() const override { return "envoy.header_rewrite"; }
 
 private:
   Http::FilterFactoryCb createFilter(const envoy::extensions::filters::http::HeaderRewrite& proto_config, FactoryContext&) {

@@ -1,5 +1,4 @@
 #pragma once
-
 #include "utility.h"
 
 #include "source/common/common/utility.h"
@@ -22,7 +21,7 @@ class Processor {
 public:
   Processor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : bool_processors_(bool_processors), is_request_(isRequest)  { }
   virtual ~Processor() {}
-  virtual absl::Status parseOperation(std::vector<absl::string_view>& operation_expression, std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
+  virtual absl::Status parseOperation([[maybe_unused]] std::vector<absl::string_view>& operation_expression, [[maybe_unused]] std::vector<absl::string_view>::iterator start) { return absl::OkStatus(); }
 
 protected:
   SetBoolProcessorMapSharedPtr bool_processors_;
@@ -37,11 +36,12 @@ public:
   std::tuple<absl::Status, std::string> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo);
 
 private:
+  using Processor::parseOperation;
   std::tuple<absl::Status, std::string> getFunctionArgument(absl::string_view function_expression);
   Utility::FunctionType getFunctionType(absl::string_view function_expression);
   std::tuple<absl::Status, std::string> getUrlp(Http::RequestOrResponseHeaderMap& headers, absl::string_view param);
   std::tuple<absl::Status, std::string> getHeaderValue(Http::RequestOrResponseHeaderMap& headers, absl::string_view key, int position);
-  std::tuple<absl::Status, std::string> getDynamicMetadata(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key);
+  std::tuple<absl::Status, std::string> getDynamicMetadata(Envoy::StreamInfo::StreamInfo* streamInfo, absl::string_view key);
 
   Utility::FunctionType function_type_;
   std::string function_argument_;
@@ -57,7 +57,7 @@ public:
   virtual std::tuple<absl::Status, bool> executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo, bool negate); // return status and bool result
 
 private:
-  std::function<bool(std::string)> matcher_ = [](std::string str) -> bool { return false; };
+  std::function<bool(std::string)> matcher_ = []([[maybe_unused]] std::string str) -> bool { return false; };
   DynamicFunctionProcessorSharedPtr dynamic_function_processor_ = nullptr;
 };
 
@@ -85,7 +85,7 @@ class HeaderProcessor : public Processor {
 public:
   HeaderProcessor(SetBoolProcessorMapSharedPtr bool_processors, bool isRequest) : Processor(bool_processors, isRequest) {}
   virtual ~HeaderProcessor() {}
-  virtual absl::Status executeOperation(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo) { return absl::OkStatus(); }
+  virtual absl::Status executeOperation([[maybe_unused]] Http::RequestOrResponseHeaderMap& headers, [[maybe_unused]] Envoy::StreamInfo::StreamInfo* streamInfo) { return absl::OkStatus(); }
   virtual std::tuple<absl::Status, bool> evaluateCondition(Http::RequestOrResponseHeaderMap& headers, Envoy::StreamInfo::StreamInfo* streamInfo); // return status and condition result
   void setConditionProcessor(ConditionProcessorSharedPtr condition_processor) { condition_processor_ = condition_processor; }
   ConditionProcessorSharedPtr getConditionProcessor() { return condition_processor_; }

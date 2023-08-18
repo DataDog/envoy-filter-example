@@ -44,8 +44,7 @@ static_resources:
           - name: sample
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.HeaderRewrite
-              key: header-processing
-              val: |
+              config: |
                   http-request set-bool true_bool %[hdr(mock_header,-1)] -m str mock_val
                   http-response set-bool false_bool %[hdr(transfer-encoding)] -m sub not_chunked
                   http-request set-bool another_true_bool %[urlp(mock_param)] -m found
