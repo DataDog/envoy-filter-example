@@ -64,6 +64,10 @@ bool isOperator(BooleanOperatorType operator_type) {
     return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or || operator_type == BooleanOperatorType::Not);
 }
 
+bool isOR(BooleanOperatorType operator_type) {
+    return operator_type == BooleanOperatorType::Or;
+}
+
 bool isBinaryOperator(BooleanOperatorType operator_type) {
     return (operator_type == BooleanOperatorType::And || operator_type == BooleanOperatorType::Or);
 }
