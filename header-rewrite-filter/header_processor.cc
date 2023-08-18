@@ -1,5 +1,6 @@
 #include "header_processor.h"
 
+#include "source/common/config/metadata.h"
 #include "source/common/common/logger.h" // TODO: remove debugging lib
 
 namespace Envoy {
@@ -673,20 +674,10 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
         if (!streamInfo) {
             return std::make_tuple(absl::NotFoundError("Stream info is null"), "");
         }
-
-        const auto& request_metadata = streamInfo->dynamicMetadata();
-        const auto& filter_metadata = request_metadata.filter_metadata();
-        const auto filter_it = filter_metadata.find(std::string(Utility::HEADER_REWRITE_FILTER_NAME));
-        if (filter_it == filter_metadata.end()) {
-            return std::make_tuple(absl::NotFoundError("Failed to find metadata for header rewrite filter"), "");
-        }
-        const auto data = filter_it->second;
-        const auto& data_value = data.fields();
-        const auto value_it = data_value.find(std::string(key));
-        if (value_it == data_value.end()) { // metadata doesn't exist
-            return std::make_tuple(absl::OkStatus(), "");
-        }
-        const auto value = value_it->second.string_value();
+        const std::string filter = std::string(Utility::HEADER_REWRITE_FILTER_NAME);
+        const std::vector<std::string> path{std::string(key), std::string(key)};
+        const auto request_metadata = streamInfo->dynamicMetadata();
+        const std::string value = Envoy::Config::Metadata::metadataValue(&request_metadata, filter, path).string_value();
         return std::make_tuple(absl::OkStatus(), std::move(value));
     } catch (std::exception& e) {
         return std::make_tuple(absl::UnknownError("failed to fetch metadata -- " + std::string(e.what())), "");
@@ -822,21 +813,16 @@ std::tuple<absl::Status, std::string> DynamicFunctionProcessor::getDynamicMetada
             return absl::NotFoundError("streamInfo is null");
         }
 
-        // set metadata
+        const std::string filter(Utility::HEADER_REWRITE_FILTER_NAME);
         envoy::config::core::v3::Metadata& dynamic_metadata = streamInfo->dynamicMetadata();
-        ProtobufWkt::Struct metadata( // get metadata for header rewrite filter
-            (*dynamic_metadata.mutable_filter_metadata())[std::string(Utility::HEADER_REWRITE_FILTER_NAME)]);
-        auto& fields = *metadata.mutable_fields();
-        auto val = ProtobufWkt::Value();
-        val.set_string_value(value);
+        ProtobufWkt::Struct filter_struct = // get metadata for header rewrite filter
+            (*dynamic_metadata.mutable_filter_metadata())[std::string(Utility::HEADER_REWRITE_FILTER_NAME)];
+        google::protobuf::Struct obj = MessageUtil::keyValueStruct(key, value);
+        ProtobufWkt::Value val;
+        *val.mutable_struct_value() = obj;
+        (*filter_struct.mutable_fields())[key] = val;
 
-        // we have to erase the key if it exists, otherwise map insert will do nothing
-        if (fields.find(key) != fields.end()) {
-            fields.erase(key);
-        }
- 
-        fields.insert({key, val});
-        streamInfo->setDynamicMetadata(std::string(Utility::HEADER_REWRITE_FILTER_NAME), metadata);
+        streamInfo->setDynamicMetadata(std::string(Utility::HEADER_REWRITE_FILTER_NAME), filter_struct);
         
         return absl::OkStatus();
     } catch (std::exception& e) {
